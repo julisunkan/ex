@@ -6,13 +6,15 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
 
-  <!-- App ID — generate a unique GUID for production -->
-  <Id>12345678-abcd-4ef0-89ab-cdef01234567</Id>
+  <Id>977e359e-268e-40f4-8e69-eb4d827c2806</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>Bank Analyzer Pro</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Bank Statement Analyzer" />
   <Description DefaultValue="Analyze bank statement transactions, auto-categorize spending, and generate summary reports directly in Excel." />
+  <IconUrl DefaultValue="https://bank-analyzer-ui.onrender.com/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://bank-analyzer-ui.onrender.com/icon-80.png" />
+  <SupportUrl DefaultValue="https://bank-analyzer-ui.onrender.com/" />
 
   <Hosts>
     <Host Name="Workbook" />
@@ -68,12 +70,6 @@
                 </Control>
               </Group>
             </OfficeTab>
-          </ExtensionPoint>
-
-          <ExtensionPoint xsi:type="ManifestPath">
-            <TaskPane id="ButtonId1">
-              <SourceLocation resid="Taskpane.Url" />
-            </TaskPane>
           </ExtensionPoint>
         </DesktopFormFactor>
       </Host>
