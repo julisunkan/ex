@@ -3,9 +3,8 @@ services:
   - type: web
     name: bank-analyzer-api
     runtime: node
-    rootDir: server
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: node server/index.js
     envVars:
       - key: USDT_WALLET_ADDRESS
         sync: false
