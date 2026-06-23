@@ -16,7 +16,7 @@ app.use("/api/config", settingsRouter);
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
-const HOST = process.env.RENDER ? "0.0.0.0" : "127.0.0.1";
+const HOST = "0.0.0.0";
 
 app.listen(PORT, HOST, () => {
   console.log(`🚀 Payment API running on http://localhost:${PORT}`);

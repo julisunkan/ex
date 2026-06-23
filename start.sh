@@ -1,9 +1,13 @@
 #!/bin/bash
-# Start backend API and frontend dev server together
+# Kill any leftover server on port 3001
+fuser -k 3001/tcp 2>/dev/null || true
+
+# Start backend API
 node server/index.js &
 BACKEND_PID=$!
 
-pnpm run dev &
+# Start frontend dev server
+pnpm run dev -- --config vite.config.ts &
 FRONTEND_PID=$!
 
 # On exit, kill both
