@@ -1,0 +1,17 @@
+{
+  "appearance": {
+    "name": "Bank Statement Analyzer",
+    "tagline": "Analyze transactions, categorize spending, and export summary reports.",
+    "primaryColor": "#3b82f6",
+    "accentColor": "#16a34a",
+    "radius": "6px"
+  },
+  "payment": {
+    "walletAddress": "",
+    "network": "tron",
+    "price": 5
+  },
+  "features": {
+    "proEnabled": true
+  }
+}

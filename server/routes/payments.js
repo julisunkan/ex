@@ -10,9 +10,24 @@ const LICENSES_FILE = join(__dirname, "../data/licenses.json");
 const router = Router();
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const WALLET_ADDRESS = process.env.USDT_WALLET_ADDRESS || "";
-const NETWORK = (process.env.USDT_NETWORK || "tron").toLowerCase(); // tron | bsc | eth
-const PRICE_USDT = Number(process.env.USDT_PRICE || "5");
+const SETTINGS_FILE = join(__dirname, "../data/settings.json");
+
+function getPaymentConfig() {
+  try {
+    const s = JSON.parse(readFileSync(SETTINGS_FILE, "utf8"));
+    return {
+      walletAddress: s.payment?.walletAddress || process.env.USDT_WALLET_ADDRESS || "",
+      network: (s.payment?.network || process.env.USDT_NETWORK || "tron").toLowerCase(),
+      price: Number(s.payment?.price ?? process.env.USDT_PRICE ?? 5),
+    };
+  } catch {
+    return {
+      walletAddress: process.env.USDT_WALLET_ADDRESS || "",
+      network: (process.env.USDT_NETWORK || "tron").toLowerCase(),
+      price: Number(process.env.USDT_PRICE || "5"),
+    };
+  }
+}
 const TRONGRID_API_KEY = process.env.TRONGRID_API_KEY || "";
 const BSCSCAN_API_KEY = process.env.BSCSCAN_API_KEY || "";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
@@ -171,16 +186,11 @@ async function verifyTransaction(txHash) {
 
 // GET /api/payments/config
 router.get("/config", (req, res) => {
-  if (!WALLET_ADDRESS) {
-    return res
-      .status(503)
-      .json({ error: "Wallet not configured on server. Set USDT_WALLET_ADDRESS." });
+  const cfg = getPaymentConfig();
+  if (!cfg.walletAddress) {
+    return res.status(503).json({ error: "Wallet not configured on server. Set USDT_WALLET_ADDRESS in Admin > Payment." });
   }
-  res.json({
-    address: WALLET_ADDRESS,
-    network: NETWORK,
-    price: PRICE_USDT,
-  });
+  res.json({ address: cfg.walletAddress, network: cfg.network, price: cfg.price });
 });
 
 // POST /api/payments/verify

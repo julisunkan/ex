@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { Switch, Route } from "wouter";
+import { AppConfigProvider } from "./context/AppConfigContext";
 import App from "./App";
 import AdminPage from "./pages/admin";
 import NotFound from "./pages/not-found";
@@ -9,11 +10,13 @@ declare const Office: typeof import("@microsoft/office-js");
 
 function Root() {
   return (
-    <Switch>
-      <Route path="/admin" component={AdminPage} />
-      <Route path="/" component={App} />
-      <Route component={NotFound} />
-    </Switch>
+    <AppConfigProvider>
+      <Switch>
+        <Route path="/admin" component={AdminPage} />
+        <Route path="/" component={App} />
+        <Route component={NotFound} />
+      </Switch>
+    </AppConfigProvider>
   );
 }
 
@@ -22,8 +25,6 @@ function mountApp() {
   createRoot(root).render(<Root />);
 }
 
-// If Office.js is available (running inside Excel), wait for it to initialize.
-// Otherwise mount immediately (standalone preview mode).
 if (typeof Office !== "undefined" && Office.initialize !== undefined) {
   Office.onReady(() => mountApp());
 } else {

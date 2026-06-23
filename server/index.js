@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import paymentsRouter from "./routes/payments.js";
 import adminRouter from "./routes/admin.js";
+import settingsRouter from "./routes/settings.js";
 
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 const app = express();
@@ -11,6 +12,7 @@ app.use(express.json());
 
 app.use("/api/payments", paymentsRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/config", settingsRouter);
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 

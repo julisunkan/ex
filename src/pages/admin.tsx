@@ -1,209 +1,499 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { KeyRound, LogOut, RefreshCw, ShieldCheck, Copy, Check } from "lucide-react";
+import {
+  KeyRound, LogOut, RefreshCw, ShieldCheck, Copy, Check,
+  CreditCard, Palette, Database, Download, Upload, Save, Eye, EyeOff
+} from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
-interface License {
-  licenseKey: string;
-  txHash: string;
-  issuedAt: string;
+// ── Types ─────────────────────────────────────────────────────────────────────
+interface License { licenseKey: string; txHash: string; issuedAt: string; }
+interface Settings {
+  appearance: { name: string; tagline: string; primaryColor: string; accentColor: string; radius: string; };
+  payment: { walletAddress: string; network: string; price: number; };
+  features: { proEnabled: boolean; };
 }
 
-interface LicenseData {
-  total: number;
-  licenses: License[];
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function CopyButton({ text }: { text: string }) {
+function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  };
   return (
-    <button onClick={copy} className="ml-1 text-muted-foreground hover:text-foreground transition-colors">
+    <button onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+      className="ml-1 text-muted-foreground hover:text-foreground transition-colors">
       {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
   );
 }
 
-export default function AdminPage() {
-  const [password, setPassword] = useState(() => sessionStorage.getItem("admin_pw") ?? "");
-  const [authed, setAuthed] = useState(false);
-  const [data, setData] = useState<LicenseData | null>(null);
+// ── Login screen ──────────────────────────────────────────────────────────────
+function LoginScreen({ onLogin }: { onLogin: (pw: string) => void }) {
+  const [pw, setPw] = useState("");
+  const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function fetchLicenses(pw: string) {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true); setError("");
+    const res = await fetch(`${API_BASE}/api/admin/settings`, { headers: { "x-admin-password": pw } });
+    setLoading(false);
+    if (res.status === 401) { setError("Wrong password."); return; }
+    if (!res.ok) { setError("Server error — is the backend running?"); return; }
+    sessionStorage.setItem("admin_pw", pw);
+    onLogin(pw);
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-2 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-blue-600" />
+          </div>
+          <CardTitle className="text-lg">Admin Login</CardTitle>
+          <p className="text-sm text-muted-foreground">Bank Statement Analyzer</p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="relative">
+              <Input type={show ? "text" : "password"} placeholder="Admin password" value={pw}
+                onChange={e => setPw(e.target.value)} autoFocus className="pr-10" />
+              <button type="button" onClick={() => setShow(s => !s)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <Button type="submit" className="w-full" disabled={loading || !pw}>{loading ? "Checking…" : "Login"}</Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Licenses tab ──────────────────────────────────────────────────────────────
+function LicensesTab({ pw }: { pw: string }) {
+  const [data, setData] = useState<{ total: number; licenses: License[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
     setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/licenses`, {
-        headers: { "x-admin-password": pw },
-      });
-      if (res.status === 401) {
-        setError("Wrong password.");
-        setAuthed(false);
-        return;
-      }
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.error ?? "Server error");
-        return;
-      }
-      const json: LicenseData = await res.json();
-      setData(json);
-      setAuthed(true);
-      sessionStorage.setItem("admin_pw", pw);
-    } catch {
-      setError("Could not reach the API. Make sure the backend is running.");
-    } finally {
-      setLoading(false);
+    const res = await fetch(`${API_BASE}/api/admin/licenses`, { headers: { "x-admin-password": pw } });
+    if (res.ok) setData(await res.json());
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{data?.total ?? 0} licenses issued</Badge>
+        </div>
+        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+          <RefreshCw className={`w-4 h-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
+      </div>
+      <Card>
+        <CardContent className="p-0">
+          {!data || data.licenses.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">No licenses issued yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50/60">
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground w-8">#</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">License Key</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Transaction Hash</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Issued At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.licenses.map((l, i) => (
+                    <tr key={l.licenseKey} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <code className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">{l.licenseKey}</code>
+                          <CopyBtn text={l.licenseKey} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 max-w-xs">
+                          <span className="font-mono text-xs text-muted-foreground truncate">{l.txHash}</span>
+                          <CopyBtn text={l.txHash} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(l.issuedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Payment tab ───────────────────────────────────────────────────────────────
+function PaymentTab({ pw, settings, onSaved }: { pw: string; settings: Settings; onSaved: (s: Settings) => void }) {
+  const [form, setForm] = useState(settings.payment);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { setForm(settings.payment); }, [settings]);
+
+  async function save() {
+    setSaving(true);
+    const res = await fetch(`${API_BASE}/api/admin/settings`, {
+      method: "PUT", headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      body: JSON.stringify({ payment: form }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      const data = await res.json();
+      onSaved(data.settings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     }
   }
 
-  function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    fetchLicenses(password);
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Payment Settings</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <label className="text-sm font-medium mb-1.5 block">USDT Wallet Address</label>
+          <Input value={form.walletAddress} onChange={e => setForm(f => ({ ...f, walletAddress: e.target.value }))}
+            placeholder="Your USDT wallet address" className="font-mono text-sm" />
+          <p className="text-xs text-muted-foreground mt-1">Customers will send USDT to this address.</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium mb-1.5 block">Network</label>
+          <select value={form.network} onChange={e => setForm(f => ({ ...f, network: e.target.value }))}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+            <option value="tron">Tron (TRC-20) — Recommended, ~$0 fees</option>
+            <option value="bsc">BNB Smart Chain (BEP-20) — Low fees</option>
+            <option value="eth">Ethereum (ERC-20) — Higher fees</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-sm font-medium mb-1.5 block">Price (USDT)</label>
+          <Input type="number" min="1" step="0.5" value={form.price}
+            onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} className="w-32" />
+        </div>
+        <div className="pt-2 border-t">
+          <p className="text-xs font-medium text-muted-foreground mb-2">API Keys (optional — for higher rate limits)</p>
+          <div className="space-y-2 text-xs text-muted-foreground bg-muted rounded-md p-3">
+            <p>Add <code className="bg-background rounded px-1">TRONGRID_API_KEY</code>, <code className="bg-background rounded px-1">BSCSCAN_API_KEY</code>, or <code className="bg-background rounded px-1">ETHERSCAN_API_KEY</code> as Replit Secrets for higher blockchain API rate limits.</p>
+          </div>
+        </div>
+        <Button onClick={save} disabled={saving} className="gap-2">
+          {saved ? <><Check className="w-4 h-4" /> Saved!</> : saving ? "Saving…" : <><Save className="w-4 h-4" /> Save Payment Settings</>}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Appearance tab ────────────────────────────────────────────────────────────
+const PRESET_COLORS = [
+  { label: "Blue", primary: "#3b82f6", accent: "#16a34a" },
+  { label: "Purple", primary: "#8b5cf6", accent: "#0891b2" },
+  { label: "Rose", primary: "#f43f5e", accent: "#0891b2" },
+  { label: "Amber", primary: "#f59e0b", accent: "#10b981" },
+  { label: "Slate", primary: "#475569", accent: "#0284c7" },
+  { label: "Teal", primary: "#0d9488", accent: "#7c3aed" },
+];
+
+const RADIUS_OPTIONS = ["2px", "4px", "6px", "8px", "12px"];
+
+function AppearanceTab({ pw, settings, onSaved }: { pw: string; settings: Settings; onSaved: (s: Settings) => void }) {
+  const [form, setForm] = useState(settings.appearance);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { setForm(settings.appearance); }, [settings]);
+
+  function applyPreview(a: typeof form) {
+    function hexToHsl(hex: string) {
+      const r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
+      const max = Math.max(r,g,b), min = Math.min(r,g,b); let h=0,s=0; const l=(max+min)/2;
+      if(max!==min){const d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);switch(max){case r:h=((g-b)/d+(g<b?6:0))/6;break;case g:h=((b-r)/d+2)/6;break;case b:h=((r-g)/d+4)/6;break;}}
+      return `${Math.round(h*360)} ${Math.round(s*100)}% ${Math.round(l*100)}%`;
+    }
+    document.documentElement.style.setProperty("--primary", hexToHsl(a.primaryColor));
+    document.documentElement.style.setProperty("--ring", hexToHsl(a.primaryColor));
+    document.documentElement.style.setProperty("--accent", hexToHsl(a.accentColor));
+    document.documentElement.style.setProperty("--radius", a.radius);
+  }
+
+  function update(patch: Partial<typeof form>) {
+    const next = { ...form, ...patch };
+    setForm(next);
+    applyPreview(next);
+  }
+
+  async function save() {
+    setSaving(true);
+    const res = await fetch(`${API_BASE}/api/admin/settings`, {
+      method: "PUT", headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      body: JSON.stringify({ appearance: form }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      const data = await res.json();
+      onSaved(data.settings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Appearance</CardTitle></CardHeader>
+      <CardContent className="space-y-5">
+        {/* Name & tagline */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Add-in Name</label>
+            <Input value={form.name} onChange={e => update({ name: e.target.value })} placeholder="Bank Statement Analyzer" />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Tagline</label>
+            <Input value={form.tagline} onChange={e => update({ tagline: e.target.value })} placeholder="Analyze transactions…" />
+          </div>
+        </div>
+
+        {/* Color presets */}
+        <div>
+          <label className="text-sm font-medium mb-2 block">Color Presets</label>
+          <div className="flex flex-wrap gap-2">
+            {PRESET_COLORS.map(p => (
+              <button key={p.label} onClick={() => update({ primaryColor: p.primary, accentColor: p.accent })}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium hover:border-primary transition-colors"
+                style={{ borderColor: form.primaryColor === p.primary ? p.primary : undefined }}>
+                <span className="w-3 h-3 rounded-full" style={{ background: p.primary }} />
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Custom colors */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Primary Color</label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={form.primaryColor} onChange={e => update({ primaryColor: e.target.value })}
+                className="w-9 h-9 rounded-md border border-input cursor-pointer p-0.5" />
+              <Input value={form.primaryColor} onChange={e => /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && update({ primaryColor: e.target.value })}
+                className="font-mono text-sm" maxLength={7} />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Accent Color</label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={form.accentColor} onChange={e => update({ accentColor: e.target.value })}
+                className="w-9 h-9 rounded-md border border-input cursor-pointer p-0.5" />
+              <Input value={form.accentColor} onChange={e => /^#[0-9a-fA-F]{0,6}$/.test(e.target.value) && update({ accentColor: e.target.value })}
+                className="font-mono text-sm" maxLength={7} />
+            </div>
+          </div>
+        </div>
+
+        {/* Border radius */}
+        <div>
+          <label className="text-sm font-medium mb-2 block">Border Radius</label>
+          <div className="flex gap-2 flex-wrap">
+            {RADIUS_OPTIONS.map(r => (
+              <button key={r} onClick={() => update({ radius: r })}
+                className={`px-3 py-1.5 text-xs rounded-md border font-medium transition-colors ${form.radius === r ? "bg-primary text-primary-foreground border-primary" : "hover:border-primary"}`}>
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Live preview */}
+        <div className="border rounded-lg p-4 bg-muted/30">
+          <p className="text-xs font-medium text-muted-foreground mb-3">Live Preview</p>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-7 h-7 rounded flex items-center justify-center" style={{ background: form.primaryColor }}>
+              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/>
+              </svg>
+            </div>
+            <div>
+              <div className="font-semibold text-sm">{form.name || "Add-in Name"}</div>
+              <div className="text-[10px] text-muted-foreground">Excel Add-in</div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">{form.tagline || "Your tagline here"}</p>
+          <div className="mt-3 flex gap-2">
+            <span className="text-xs px-2.5 py-1 rounded-full text-white font-medium" style={{ background: form.primaryColor, borderRadius: form.radius }}>Primary Button</span>
+            <span className="text-xs px-2.5 py-1 rounded-full text-white font-medium" style={{ background: form.accentColor, borderRadius: form.radius }}>Accent Button</span>
+          </div>
+        </div>
+
+        <Button onClick={save} disabled={saving} className="gap-2">
+          {saved ? <><Check className="w-4 h-4" /> Saved!</> : saving ? "Saving…" : <><Save className="w-4 h-4" /> Save Appearance</>}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Backup tab ────────────────────────────────────────────────────────────────
+function BackupTab({ pw }: { pw: string }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
+
+  async function exportData() {
+    const res = await fetch(`${API_BASE}/api/admin/export`, { headers: { "x-admin-password": pw } });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url;
+    a.download = `bsa-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setImporting(true); setImportMsg("");
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const res = await fetch(`${API_BASE}/api/admin/import`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        body: JSON.stringify(json),
+      });
+      setImportMsg(res.ok ? "✅ Import successful! Reload the page to see changes." : "❌ Import failed.");
+    } catch {
+      setImportMsg("❌ Invalid backup file.");
+    }
+    setImporting(false);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Download className="w-4 h-4" /> Export Backup</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">Download all settings and license records as a JSON file you can use to restore or migrate.</p>
+          <Button onClick={exportData} variant="outline" className="gap-2"><Download className="w-4 h-4" /> Download Backup</Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Upload className="w-4 h-4" /> Import Backup</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">Restore settings and licenses from a previously exported backup file. <strong>This will overwrite current data.</strong></p>
+          <input ref={fileRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
+          <Button onClick={() => fileRef.current?.click()} variant="outline" disabled={importing} className="gap-2">
+            <Upload className="w-4 h-4" /> {importing ? "Importing…" : "Choose Backup File"}
+          </Button>
+          {importMsg && <p className="mt-3 text-sm">{importMsg}</p>}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Main admin page ───────────────────────────────────────────────────────────
+type Tab = "licenses" | "payment" | "appearance" | "backup";
+
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: "licenses",   label: "Licenses",   icon: <KeyRound className="w-4 h-4" /> },
+  { id: "payment",    label: "Payment",    icon: <CreditCard className="w-4 h-4" /> },
+  { id: "appearance", label: "Appearance", icon: <Palette className="w-4 h-4" /> },
+  { id: "backup",     label: "Backup",     icon: <Database className="w-4 h-4" /> },
+];
+
+export default function AdminPage() {
+  const [pw, setPw] = useState(() => sessionStorage.getItem("admin_pw") ?? "");
+  const [authed, setAuthed] = useState(false);
+  const [tab, setTab] = useState<Tab>("licenses");
+  const [settings, setSettings] = useState<Settings | null>(null);
+
+  async function loadSettings(password: string) {
+    const res = await fetch(`${API_BASE}/api/admin/settings`, { headers: { "x-admin-password": password } });
+    if (res.ok) setSettings(await res.json());
+  }
+
+  function handleLogin(password: string) {
+    setPw(password);
+    setAuthed(true);
+    loadSettings(password);
   }
 
   function logout() {
     sessionStorage.removeItem("admin_pw");
-    setAuthed(false);
-    setData(null);
-    setPassword("");
+    setAuthed(false); setSettings(null); setPw("");
   }
 
-  // Auto-login if password saved in session
+  // Auto-login from session
   useEffect(() => {
     const saved = sessionStorage.getItem("admin_pw");
-    if (saved) fetchLicenses(saved);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (saved) {
+      fetch(`${API_BASE}/api/admin/settings`, { headers: { "x-admin-password": saved } })
+        .then(r => { if (r.ok) { setAuthed(true); return r.json(); } throw new Error(); })
+        .then(s => { setPw(saved); setSettings(s); })
+        .catch(() => { sessionStorage.removeItem("admin_pw"); });
+    }
   }, []);
 
-  if (!authed) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-2 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-blue-600" />
-            </div>
-            <CardTitle className="text-lg">Admin Login</CardTitle>
-            <p className="text-sm text-muted-foreground">Bank Statement Analyzer</p>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-3">
-              <Input
-                type="password"
-                placeholder="Admin password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoFocus
-              />
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={loading || !password}>
-                {loading ? "Checking…" : "Login"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  if (!authed) return <LoginScreen onLogin={handleLogin} />;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <KeyRound className="w-5 h-5 text-blue-600" />
-            <h1 className="text-xl font-semibold">License Admin</h1>
-            <Badge variant="secondary">{data?.total ?? 0} issued</Badge>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchLicenses(password)}
-              disabled={loading}
-            >
-              <RefreshCw className={`w-4 h-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-            <Button variant="ghost" size="sm" onClick={logout}>
-              <LogOut className="w-4 h-4 mr-1" />
-              Logout
-            </Button>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Top bar */}
+      <div className="bg-white border-b px-4 md:px-8 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="w-5 h-5 text-primary" />
+          <span className="font-semibold text-sm">Admin Panel</span>
+          <span className="text-muted-foreground text-xs hidden sm:inline">· Bank Statement Analyzer</span>
+        </div>
+        <Button variant="ghost" size="sm" onClick={logout} className="gap-1.5">
+          <LogOut className="w-4 h-4" /> Logout
+        </Button>
+      </div>
+
+      <div className="max-w-4xl mx-auto p-4 md:p-8">
+        {/* Tabs */}
+        <div className="flex gap-1 bg-muted p-1 rounded-lg mb-6 w-fit">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === t.id ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              {t.icon} <span className="hidden sm:inline">{t.label}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Table */}
-        <Card>
-          <CardContent className="p-0">
-            {!data || data.licenses.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground text-sm">
-                No licenses issued yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-gray-50/60">
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">#</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">License Key</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Transaction Hash</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Issued At</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.licenses.map((lic, i) => (
-                      <tr key={lic.licenseKey} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            <code className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">
-                              {lic.licenseKey}
-                            </code>
-                            <CopyButton text={lic.licenseKey} />
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1 max-w-xs">
-                            <span className="font-mono text-xs text-muted-foreground truncate">
-                              {lic.txHash}
-                            </span>
-                            <CopyButton text={lic.txHash} />
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                          {formatDate(lic.issuedAt)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Tab content */}
+        {tab === "licenses"   && <LicensesTab pw={pw} />}
+        {tab === "payment"    && settings && <PaymentTab pw={pw} settings={settings} onSaved={setSettings} />}
+        {tab === "appearance" && settings && <AppearanceTab pw={pw} settings={settings} onSaved={setSettings} />}
+        {tab === "backup"     && <BackupTab pw={pw} />}
+        {(tab === "payment" || tab === "appearance") && !settings && (
+          <div className="text-center py-12 text-muted-foreground text-sm">Loading settings…</div>
+        )}
       </div>
     </div>
   );

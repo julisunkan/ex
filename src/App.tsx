@@ -11,6 +11,7 @@ import { buildSummary, type Summary, type Transaction } from "./lib/categorizer"
 import { parsePastedText, writeToExcelSheet } from "./lib/csv-parser";
 import { getLicense, checkLicenseValid } from "./lib/payment";
 import PaymentGate from "./components/PaymentGate";
+import { useAppConfig } from "./context/AppConfigContext";
 
 declare const Excel: typeof import("@microsoft/office-js").Excel;
 declare const Office: typeof import("@microsoft/office-js");
@@ -28,6 +29,9 @@ function runExcel<T>(fn: (context: Excel.RequestContext) => Promise<T>): Promise
 }
 
 export default function App() {
+  const config = useAppConfig();
+  const appName = config.appearance.name;
+  const appTagline = config.appearance.tagline;
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState<string>("");
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -186,7 +190,7 @@ export default function App() {
           </svg>
         </div>
         <div>
-          <div className="font-semibold text-sm leading-none text-foreground">Bank Statement Analyzer</div>
+          <div className="font-semibold text-sm leading-none text-foreground">{appName}</div>
           <div className="text-[10px] text-muted-foreground mt-0.5">Excel Add-in</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -215,10 +219,8 @@ export default function App() {
                   <path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 1 1 0 10h-2" /><line x1="8" y1="12" x2="16" y2="12" />
                 </svg>
               </div>
-              <h2 className="text-base font-semibold mb-1">Bank Statement Analyzer</h2>
-              <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">
-                Analyze transactions, categorize spending, and export summary reports.
-              </p>
+              <h2 className="text-base font-semibold mb-1">{appName}</h2>
+              <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">{appTagline}</p>
             </div>
 
             <div className="w-full max-w-[260px] space-y-3">
