@@ -25,7 +25,7 @@ services:
   - type: web
     name: bank-analyzer-ui
     runtime: static
-    buildCommand: npm install && npm run build
+    buildCommand: pnpm install && pnpm run build
     staticPublishPath: dist/public
     envVars:
       - key: VITE_API_URL
