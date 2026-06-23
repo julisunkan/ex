@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-success: hsl(var(--success));
+  --font-sans: var(--app-font-sans);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+}
+
+:root {
+  --background: 220 20% 97%;
+  --foreground: 222 47% 11%;
+  --border: 220 13% 88%;
+  --input: 220 13% 88%;
+  --ring: 217 91% 60%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 94%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 220 14% 94%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 142 76% 36%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --success: 142 76% 36%;
+  --app-font-sans: 'Inter', sans-serif;
+  --radius: 6px;
+}
+
+@layer base {
+  * { @apply border-border; box-sizing: border-box; }
+  body { @apply font-sans antialiased bg-background text-foreground text-sm; margin: 0; }
+}
+
+/* Category badge colors */
+.cat-salary    { background: #dcfce7; color: #166534; }
+.cat-food      { background: #fef3c7; color: #92400e; }
+.cat-grocery   { background: #d1fae5; color: #065f46; }
+.cat-transport { background: #ede9fe; color: #4c1d95; }
+.cat-utility   { background: #ffedd5; color: #9a3412; }
+.cat-shopping  { background: #fce7f3; color: #9d174d; }
+.cat-entertain { background: #e0e7ff; color: #3730a3; }
+.cat-health    { background: #cffafe; color: #164e63; }
+.cat-savings   { background: #dbeafe; color: #1e40af; }
+.cat-invest    { background: #f0fdf4; color: #14532d; }
+.cat-loan      { background: #fee2e2; color: #991b1b; }
+.cat-other     { background: #f1f5f9; color: #475569; }

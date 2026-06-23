@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/excel-addin/"
+title = "Bank Analyzer Excel Add-in"
+version = "1.0.0"
+id = "artifacts/excel-addin"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/excel-addin/" ]
+localPort = 22524
+
+[services.development]
+run = "pnpm --filter @workspace/excel-addin run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/excel-addin", "run", "build" ]
+publicDir = "artifacts/excel-addin/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22524"
+BASE_PATH = "/excel-addin/"

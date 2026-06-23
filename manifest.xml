@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+  xsi:type="TaskPaneApp">
+
+  <!-- App ID — generate a unique GUID for production -->
+  <Id>12345678-abcd-4ef0-89ab-cdef01234567</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Bank Analyzer Pro</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Bank Statement Analyzer" />
+  <Description DefaultValue="Analyze bank statement transactions, auto-categorize spending, and generate summary reports directly in Excel." />
+
+  <Hosts>
+    <Host Name="Workbook" />
+  </Hosts>
+
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="ExcelApi" MinVersion="1.1" />
+    </Sets>
+  </Requirements>
+
+  <!-- Replace SOURCE_URL_PLACEHOLDER with your deployed URL, e.g.:
+       https://your-app.replit.app/excel-addin/
+  -->
+  <DefaultSettings>
+    <SourceLocation DefaultValue="SOURCE_URL_PLACEHOLDER" />
+  </DefaultSettings>
+
+  <Permissions>ReadWriteDocument</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title" />
+            <Description resid="GetStarted.Description" />
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl" />
+          </GetStarted>
+          <FunctionFile resid="Commands.Url" />
+
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="CommandsGroup">
+                <Label resid="CommandsGroup.Label" />
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16" />
+                  <bt:Image size="32" resid="Icon.32x32" />
+                  <bt:Image size="80" resid="Icon.80x80" />
+                </Icon>
+                <Control xsi:type="Button" id="TaskpaneButton">
+                  <Label resid="TaskpaneButton.Label" />
+                  <Supertip>
+                    <Title resid="TaskpaneButton.SupertipTitle" />
+                    <Description resid="TaskpaneButton.SupertipDescription" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16" />
+                    <bt:Image size="32" resid="Icon.32x32" />
+                    <bt:Image size="80" resid="Icon.80x80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>ButtonId1</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+
+          <ExtensionPoint xsi:type="ManifestPath">
+            <TaskPane id="ButtonId1">
+              <SourceLocation resid="Taskpane.Url" />
+            </TaskPane>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="SOURCE_URL_PLACEHOLDER/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="SOURCE_URL_PLACEHOLDER/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="SOURCE_URL_PLACEHOLDER/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://go.microsoft.com/fwlink/?LinkId=276812" />
+        <bt:Url id="Commands.Url" DefaultValue="SOURCE_URL_PLACEHOLDER" />
+        <bt:Url id="Taskpane.Url" DefaultValue="SOURCE_URL_PLACEHOLDER" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="Get started with Bank Statement Analyzer!" />
+        <bt:String id="CommandsGroup.Label" DefaultValue="Bank Analyzer" />
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Analyze Statement" />
+        <bt:String id="TaskpaneButton.SupertipTitle" DefaultValue="Open Bank Statement Analyzer" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="Paste your bank statement data and let the add-in categorize and analyze your transactions." />
+        <bt:String id="TaskpaneButton.SupertipDescription" DefaultValue="Opens the Bank Statement Analyzer task pane to categorize transactions and generate reports." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>
