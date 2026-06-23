@@ -44,12 +44,19 @@ function LoginScreen({ onLogin }: { onLogin: (pw: string) => void }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setError("");
-    const res = await fetch(`${API_BASE}/api/admin/settings`, { headers: { "x-admin-password": pw } });
-    setLoading(false);
-    if (res.status === 401) { setError("Wrong password."); return; }
-    if (!res.ok) { setError("Server error — is the backend running?"); return; }
-    sessionStorage.setItem("admin_pw", pw);
-    onLogin(pw);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/settings`, { headers: { "x-admin-password": pw } });
+      setLoading(false);
+      if (res.status === 401) { setError("Wrong password."); return; }
+      if (res.status === 503) { setError("Backend not configured — set ADMIN_PASSWORD on the server."); return; }
+      if (!res.ok) { setError(`Server error (${res.status}) — check that VITE_API_URL points to your backend.`); return; }
+      sessionStorage.setItem("admin_pw", pw);
+      onLogin(pw);
+    } catch {
+      setLoading(false);
+      const hint = API_BASE ? `Cannot reach ${API_BASE}` : "VITE_API_URL is not set — rebuild the frontend with that env var.";
+      setError(`Network error — ${hint}`);
+    }
   }
 
   return (
