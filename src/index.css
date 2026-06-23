@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-based dark mode for Tailwind v4 */
+@variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -24,6 +27,7 @@
   --radius-lg: calc(var(--radius) + 4px);
 }
 
+/* ── Light theme ── */
 :root {
   --background: 220 25% 96%;
   --foreground: 222 47% 10%;
@@ -46,6 +50,27 @@
   --radius: 8px;
 }
 
+/* ── Dark theme ── */
+.dark {
+  --background: 222 25% 10%;
+  --foreground: 215 20% 90%;
+  --border: 220 15% 22%;
+  --input: 220 15% 22%;
+  --ring: 217 91% 60%;
+  --card: 222 22% 15%;
+  --card-foreground: 215 20% 90%;
+  --primary: 217 91% 62%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 16% 20%;
+  --secondary-foreground: 215 20% 82%;
+  --muted: 220 16% 20%;
+  --muted-foreground: 215 14% 55%;
+  --accent: 142 65% 40%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 55%;
+  --success: 142 65% 40%;
+}
+
 @layer base {
   * { @apply border-border; box-sizing: border-box; }
   body {
@@ -58,12 +83,13 @@
   h1, h2, h3 { letter-spacing: -0.01em; }
 }
 
-/* Scrollbar styling */
+/* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
 
-/* Category badge colors — slightly richer */
+/* ── Category badge colors ── */
+/* Light versions (default) */
 .cat-salary    { background: #dcfce7; color: #15803d; font-weight: 600; }
 .cat-food      { background: #fef3c7; color: #92400e; font-weight: 600; }
 .cat-grocery   { background: #d1fae5; color: #065f46; font-weight: 600; }
@@ -76,3 +102,17 @@
 .cat-invest    { background: #f0fdf4; color: #14532d; font-weight: 600; }
 .cat-loan      { background: #fee2e2; color: #991b1b; font-weight: 600; }
 .cat-other     { background: #f1f5f9; color: #475569; font-weight: 600; }
+
+/* Dark versions */
+.dark .cat-salary    { background: #14532d40; color: #86efac; }
+.dark .cat-food      { background: #78350f40; color: #fcd34d; }
+.dark .cat-grocery   { background: #064e3b40; color: #6ee7b7; }
+.dark .cat-transport { background: #4c1d9540; color: #c4b5fd; }
+.dark .cat-utility   { background: #7c2d1240; color: #fdba74; }
+.dark .cat-shopping  { background: #83184340; color: #f9a8d4; }
+.dark .cat-entertain { background: #1e1b4b40; color: #a5b4fc; }
+.dark .cat-health    { background: #164e6340; color: #67e8f9; }
+.dark .cat-savings   { background: #1e3a8a40; color: #93c5fd; }
+.dark .cat-invest    { background: #14532d40; color: #86efac; }
+.dark .cat-loan      { background: #7f1d1d40; color: #fca5a5; }
+.dark .cat-other     { background: #1e293b40; color: #94a3b8; }
