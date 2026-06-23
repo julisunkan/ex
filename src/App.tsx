@@ -28,10 +28,38 @@ function runExcel<T>(fn: (context: Excel.RequestContext) => Promise<T>): Promise
   return Excel.run(fn);
 }
 
+// ── KPI Card ─────────────────────────────────────────────────────────────────
+function KpiCard({ label, value, color, icon }: { label: string; value: string; color: string; icon: string }) {
+  return (
+    <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className="text-base">{icon}</span>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+      </div>
+      <p className={`text-xl font-extrabold tracking-tight ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+// ── Action Button ─────────────────────────────────────────────────────────────
+function ActionBtn({
+  onClick, disabled, children, variant = "primary"
+}: {
+  onClick: () => void; disabled?: boolean; children: React.ReactNode; variant?: "primary" | "secondary";
+}) {
+  const base = "flex-1 flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed";
+  const styles = variant === "primary"
+    ? `${base} bg-primary text-primary-foreground hover:opacity-90 shadow-sm`
+    : `${base} bg-secondary text-secondary-foreground hover:bg-secondary/70 border border-border`;
+  return <button onClick={onClick} disabled={disabled} className={styles}>{children}</button>;
+}
+
+// ── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const config = useAppConfig();
   const appName = config.appearance.name;
   const appTagline = config.appearance.tagline;
+
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState<string>("");
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -46,12 +74,9 @@ export default function App() {
   const [pendingAction, setPendingAction] = useState<"highlight" | "export" | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Check license on mount
   useEffect(() => {
     const key = getLicense();
-    if (key) {
-      checkLicenseValid(key).then((valid) => setIsPro(valid));
-    }
+    if (key) checkLicenseValid(key).then((valid) => setIsPro(valid));
   }, []);
 
   const requirePro = useCallback((action: "highlight" | "export") => {
@@ -64,28 +89,20 @@ export default function App() {
   const onPaymentUnlocked = useCallback(() => {
     setIsPro(true);
     setShowPayment(false);
-    // Auto-trigger the action the user was trying to do
     if (pendingAction === "highlight") doHighlight();
     if (pendingAction === "export") doExport();
     setPendingAction(null);
   }, [pendingAction]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const analyzeSheet = useCallback(async () => {
-    setStep("loading");
-    setError("");
-    setSummary(null);
-    setExportDone(false);
+    setStep("loading"); setError(""); setSummary(null); setExportDone(false);
     try {
       const txns: Transaction[] = await runExcel(async (ctx) => {
         const sheet = ctx.workbook.worksheets.getActiveWorksheet();
         sheet.load("name");
         await ctx.sync();
         const columnMap: ColumnMap | null = await detectColumns(sheet);
-        if (!columnMap) {
-          throw new Error(
-            "Could not find required columns (Date, Description, Amount) in row 1.\nMake sure the active sheet has column headers."
-          );
-        }
+        if (!columnMap) throw new Error("Could not find required columns (Date, Description, Amount) in row 1.\nMake sure the active sheet has column headers.");
         return await readTransactions(sheet, columnMap);
       });
       if (txns.length === 0) throw new Error("No transactions found. Check that the sheet has data rows below the header.");
@@ -100,10 +117,7 @@ export default function App() {
   const importAndAnalyzeCsv = useCallback(async () => {
     setCsvError("");
     const parsed = parsePastedText(csvText);
-    if (!parsed) {
-      setCsvError("Could not parse the pasted text. Make sure it has a header row and at least one data row.");
-      return;
-    }
+    if (!parsed) { setCsvError("Could not parse. Make sure there's a header row and at least one data row."); return; }
     setStep("importing");
     try {
       await runExcel(async (ctx) => { await writeToExcelSheet(parsed, ctx); });
@@ -135,9 +149,7 @@ export default function App() {
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setHighlighting(false);
-    }
+    } finally { setHighlighting(false); }
   }, [summary]);
 
   const doExport = useCallback(async () => {
@@ -148,18 +160,11 @@ export default function App() {
       setExportDone(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setExporting(false);
-    }
+    } finally { setExporting(false); }
   }, [summary]);
 
-  const handleHighlight = useCallback(() => {
-    if (requirePro("highlight")) doHighlight();
-  }, [requirePro, doHighlight]);
-
-  const handleExport = useCallback(() => {
-    if (requirePro("export")) doExport();
-  }, [requirePro, doExport]);
+  const handleHighlight = useCallback(() => { if (requirePro("highlight")) doHighlight(); }, [requirePro, doHighlight]);
+  const handleExport = useCallback(() => { if (requirePro("export")) doExport(); }, [requirePro, doExport]);
 
   const reset = () => {
     setStep("idle"); setSummary(null); setError("");
@@ -182,97 +187,107 @@ export default function App() {
         />
       )}
 
-      {/* Header */}
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-border bg-white shadow-sm shrink-0">
-        <div className="flex items-center justify-center w-7 h-7 rounded bg-primary">
-          <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <rect x="2" y="3" width="20" height="18" rx="2" /><path d="M8 7h8M8 11h8M8 15h5" />
+      {/* ── Header ── */}
+      <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-border shadow-sm shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary shadow-sm">
+          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <rect x="2" y="3" width="20" height="18" rx="2" />
+            <path d="M8 7h8M8 11h8M8 15h5" />
           </svg>
         </div>
-        <div>
-          <div className="font-semibold text-sm leading-none text-foreground">{appName}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Excel Add-in</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-[15px] leading-tight text-foreground truncate">{appName}</div>
+          <div className="text-xs text-muted-foreground font-medium">Excel Add-in</div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {isPro && (
-            <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">
+            <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 tracking-wide">
               ⭐ PRO
             </span>
           )}
           {(step === "results" || step === "error" || step === "paste") && (
-            <button onClick={reset} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">
-              ← Back
+            <button onClick={reset}
+              className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              Back
             </button>
           )}
         </div>
       </header>
 
-      {/* Body */}
+      {/* ── Body ── */}
       <div className="flex-1 overflow-y-auto">
 
         {/* ── IDLE ── */}
         {step === "idle" && (
-          <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center gap-6">
-            <div>
-              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                <svg className="w-7 h-7 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 1 1 0 10h-2" /><line x1="8" y1="12" x2="16" y2="12" />
+          <div className="flex flex-col items-center justify-center h-full px-5 py-8 text-center gap-7">
+            {/* Hero */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center shadow-inner">
+                <svg className="w-8 h-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
                 </svg>
               </div>
-              <h2 className="text-base font-semibold mb-1">{appName}</h2>
-              <p className="text-xs text-muted-foreground max-w-[220px] mx-auto">{appTagline}</p>
+              <div>
+                <h1 className="text-xl font-extrabold text-foreground tracking-tight mb-1">{appName}</h1>
+                <p className="text-sm text-muted-foreground max-w-[230px] mx-auto leading-relaxed">{appTagline}</p>
+              </div>
             </div>
 
-            <div className="w-full max-w-[260px] space-y-3">
-              <button
-                onClick={analyzeSheet}
-                className="w-full text-left bg-white border border-border rounded-lg p-3 hover:border-primary/50 hover:shadow-sm transition-all group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
-                    <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            {/* Action cards */}
+            <div className="w-full max-w-[300px] space-y-3">
+              <button onClick={analyzeSheet}
+                className="w-full text-left bg-white border-2 border-border rounded-xl p-4 hover:border-primary/60 hover:shadow-md transition-all group">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                    <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-foreground">Analyze Active Sheet</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Read data already in Excel</p>
+                    <p className="text-sm font-bold text-foreground">Analyze Active Sheet</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Read data already in Excel</p>
                   </div>
+                  <svg className="w-4 h-4 text-muted-foreground ml-auto shrink-0 group-hover:text-primary transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
                 </div>
               </button>
 
-              <button
-                onClick={() => setStep("paste")}
-                className="w-full text-left bg-white border border-border rounded-lg p-3 hover:border-primary/50 hover:shadow-sm transition-all group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-md bg-accent/10 flex items-center justify-center shrink-0 group-hover:bg-accent/20 transition-colors">
-                    <svg className="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <button onClick={() => setStep("paste")}
+                className="w-full text-left bg-white border-2 border-border rounded-xl p-4 hover:border-primary/60 hover:shadow-md transition-all group">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0 group-hover:bg-accent/20 transition-colors">
+                    <svg className="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" /><path d="M9 12h6M9 16h4" />
+                      <rect x="8" y="2" width="8" height="4" rx="1" /><path d="M9 12h6M9 16h4" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-foreground">Paste CSV / Text</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Import from your bank portal</p>
+                    <p className="text-sm font-bold text-foreground">Paste CSV / Text</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Import from your bank portal</p>
                   </div>
+                  <svg className="w-4 h-4 text-muted-foreground ml-auto shrink-0 group-hover:text-primary transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
                 </div>
               </button>
             </div>
 
             {/* Free vs Pro */}
             {!isPro && (
-              <div className="w-full max-w-[260px] border border-amber-200 rounded-lg overflow-hidden">
-                <div className="bg-amber-50 px-3 py-2 flex items-center justify-between">
-                  <p className="text-[11px] font-semibold text-amber-800">Free vs Pro</p>
-                  <button
-                    onClick={() => setShowPayment(true)}
-                    className="text-[10px] font-semibold text-amber-700 bg-amber-200 hover:bg-amber-300 px-2 py-0.5 rounded transition-colors"
-                  >
+              <div className="w-full max-w-[300px] rounded-xl border-2 border-amber-200 overflow-hidden shadow-sm">
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2.5 flex items-center justify-between border-b border-amber-200">
+                  <p className="text-sm font-bold text-amber-800">Free vs Pro</p>
+                  <button onClick={() => setShowPayment(true)}
+                    className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1 rounded-lg transition-colors shadow-sm">
                     Unlock $5 USDT
                   </button>
                 </div>
-                <div className="p-2 space-y-1">
+                <div className="p-3 space-y-2 bg-white">
                   {[
                     { label: "Analyze transactions", free: true },
                     { label: "Categorize spending", free: true },
@@ -280,11 +295,13 @@ export default function App() {
                     { label: "Highlight cells by category", free: false },
                     { label: "Export summary sheet", free: false },
                   ].map((f) => (
-                    <div key={f.label} className="flex items-center gap-2 text-[10px]">
-                      <span className={f.free ? "text-green-600" : "text-muted-foreground/50"}>
+                    <div key={f.label} className="flex items-center gap-2.5">
+                      <span className={`text-sm ${f.free ? "text-green-600" : "text-muted-foreground/40"}`}>
                         {f.free ? "✓" : "🔒"}
                       </span>
-                      <span className={f.free ? "text-foreground" : "text-muted-foreground/60"}>{f.label}</span>
+                      <span className={`text-sm ${f.free ? "text-foreground font-medium" : "text-muted-foreground/60"}`}>
+                        {f.label}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -295,11 +312,11 @@ export default function App() {
 
         {/* ── PASTE CSV ── */}
         {step === "paste" && (
-          <div className="flex flex-col h-full p-3 gap-3">
+          <div className="flex flex-col h-full p-4 gap-4">
             <div>
-              <h3 className="text-sm font-semibold mb-0.5">Paste Bank Statement</h3>
-              <p className="text-[11px] text-muted-foreground">
-                Copy your statement from your bank's portal or export (CSV, TSV, or plain text) and paste below.
+              <h2 className="text-base font-bold text-foreground mb-1">Paste Bank Statement</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Copy your statement from your bank's portal or CSV export and paste it below.
               </p>
             </div>
             <textarea
@@ -307,179 +324,203 @@ export default function App() {
               value={csvText}
               onChange={(e) => { setCsvText(e.target.value); setCsvError(""); }}
               placeholder={"Date,Description,Amount,Type\n01/06/2026,SALARY JUNE,650000,CR\n02/06/2026,SHOPRITE,-45000,DR\n..."}
-              className="flex-1 w-full rounded-md border border-border bg-white p-2 text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+              className="flex-1 w-full rounded-xl border-2 border-border bg-white p-3 text-sm font-mono resize-none focus:outline-none focus:border-primary placeholder:text-muted-foreground/40 transition-colors"
               spellCheck={false}
             />
-            {csvError && <p className="text-xs text-destructive bg-destructive/10 rounded-md px-2 py-1.5">{csvError}</p>}
+            {csvError && (
+              <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/20 rounded-xl px-3 py-2.5">
+                <svg className="w-4 h-4 text-destructive shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <p className="text-sm text-destructive font-medium">{csvError}</p>
+              </div>
+            )}
             {csvText.trim().length > 0 && (() => {
               const parsed = parsePastedText(csvText);
               return parsed ? (
-                <p className="text-[10px] text-muted-foreground">
-                  Detected <span className="font-semibold text-foreground">{parsed.rawCount} rows</span> with{" "}
-                  <span className="font-semibold text-foreground">{parsed.headers.length} columns</span>:{" "}
+                <p className="text-sm text-muted-foreground">
+                  Detected <span className="font-bold text-foreground">{parsed.rawCount} rows</span> ·{" "}
+                  <span className="font-bold text-foreground">{parsed.headers.length} columns</span>:{" "}
                   {parsed.headers.join(", ")}
                 </p>
               ) : (
-                <p className="text-[10px] text-muted-foreground/70">Need at least a header row and one data row.</p>
+                <p className="text-sm text-amber-600 font-medium">⚠ Need at least a header row and one data row.</p>
               );
             })()}
-            <div className="flex gap-2 shrink-0">
-              <button onClick={() => { setCsvText(""); setCsvError(""); }} className="flex-1 text-xs bg-muted text-muted-foreground font-medium py-2 rounded-md hover:bg-muted/80 transition-colors">Clear</button>
-              <button onClick={importAndAnalyzeCsv} disabled={!csvText.trim()} className="flex-1 text-xs bg-primary text-primary-foreground font-medium py-2 rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50">
+            <div className="flex gap-3 shrink-0">
+              <ActionBtn variant="secondary" onClick={() => { setCsvText(""); setCsvError(""); }}>
+                Clear
+              </ActionBtn>
+              <ActionBtn onClick={importAndAnalyzeCsv} disabled={!csvText.trim()}>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" />
+                  <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                </svg>
                 Import &amp; Analyze
-              </button>
+              </ActionBtn>
             </div>
           </div>
         )}
 
-        {/* ── IMPORTING / LOADING ── */}
+        {/* ── LOADING / IMPORTING ── */}
         {(step === "importing" || step === "loading") && (
-          <div className="flex flex-col items-center justify-center h-full gap-3">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-muted-foreground">
-              {step === "importing" ? "Writing to Excel sheet…" : "Analyzing transactions…"}
-            </p>
+          <div className="flex flex-col items-center justify-center h-full gap-4">
+            <div className="relative w-14 h-14">
+              <div className="w-14 h-14 border-4 border-primary/20 rounded-full" />
+              <div className="absolute inset-0 w-14 h-14 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+            <div className="text-center">
+              <p className="text-base font-bold text-foreground">
+                {step === "importing" ? "Writing to Excel…" : "Analyzing transactions…"}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">This will only take a moment</p>
+            </div>
           </div>
         )}
 
         {/* ── ERROR ── */}
         {step === "error" && (
-          <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
-            <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-3">
-              <svg className="w-6 h-6 text-destructive" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          <div className="flex flex-col items-center justify-center h-full px-5 py-8 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mb-4">
+              <svg className="w-7 h-7 text-destructive" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
             </div>
-            <h3 className="text-sm font-semibold text-destructive mb-2">Analysis Failed</h3>
-            <p className="text-xs text-muted-foreground mb-4 whitespace-pre-wrap">{error}</p>
-            <button onClick={reset} className="text-xs bg-muted px-4 py-2 rounded-md hover:bg-muted/80 transition-colors">Try Again</button>
+            <h3 className="text-base font-bold text-destructive mb-2">Analysis Failed</h3>
+            <p className="text-sm text-muted-foreground mb-5 whitespace-pre-wrap leading-relaxed max-w-xs">{error}</p>
+            <button onClick={reset}
+              className="text-sm font-bold bg-muted hover:bg-muted/70 text-foreground px-6 py-2.5 rounded-xl transition-colors">
+              ← Try Again
+            </button>
           </div>
         )}
 
         {/* ── RESULTS ── */}
         {step === "results" && summary && (
           <div className="flex flex-col h-full">
-            {/* Action buttons */}
-            <div className="flex gap-2 px-3 pt-3 pb-2 shrink-0">
-              {/* Highlight — locked for free users */}
-              <button
-                onClick={handleHighlight}
-                disabled={highlighting}
-                className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-secondary text-secondary-foreground font-medium py-2 rounded-md hover:bg-secondary/80 transition-colors disabled:opacity-60 relative"
-              >
-                {highlighting
-                  ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                  : isPro
-                  ? <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-                  : <span className="text-[10px]">🔒</span>
-                }
-                Highlight Cells
-              </button>
 
-              {/* Export — locked for free users */}
-              <button
-                onClick={handleExport}
-                disabled={exporting}
-                className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-primary text-primary-foreground font-medium py-2 rounded-md hover:bg-primary/90 transition-colors disabled:opacity-60"
-              >
-                {exporting
-                  ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                  : exportDone
-                  ? <><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>Done</>
+            {/* Action buttons */}
+            <div className="flex gap-3 px-4 pt-4 pb-3 shrink-0">
+              <ActionBtn variant="secondary" onClick={handleHighlight} disabled={highlighting}>
+                {highlighting
+                  ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   : isPro
-                  ? <><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>Export Sheet</>
-                  : <><span className="text-[10px]">🔒</span>Export Sheet</>
+                  ? <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                  : <span>🔒</span>
                 }
-              </button>
+                Highlight
+              </ActionBtn>
+              <ActionBtn onClick={handleExport} disabled={exporting}>
+                {exporting
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : exportDone
+                  ? <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                  : isPro
+                  ? <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                  : <span>🔒</span>
+                }
+                {exportDone ? "Exported!" : "Export Sheet"}
+              </ActionBtn>
             </div>
 
-            {/* Free upsell banner */}
+            {/* Upsell banner */}
             {!isPro && (
-              <button
-                onClick={() => setShowPayment(true)}
-                className="mx-3 mb-2 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-md px-3 py-2 hover:bg-amber-100 transition-colors"
-              >
+              <button onClick={() => setShowPayment(true)}
+                className="mx-4 mb-3 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl px-4 py-3 hover:border-amber-400 transition-all group">
                 <div className="text-left">
-                  <p className="text-[11px] font-semibold text-amber-800">Unlock Premium — $5 USDT</p>
-                  <p className="text-[10px] text-amber-600">Highlight cells · Export report sheet</p>
+                  <p className="text-sm font-bold text-amber-800">Unlock Premium — $5 USDT</p>
+                  <p className="text-xs text-amber-600 mt-0.5">Highlight cells · Export report sheet</p>
                 </div>
-                <svg className="w-4 h-4 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+                <svg className="w-5 h-5 text-amber-500 shrink-0 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
               </button>
             )}
 
             {/* Tabs */}
-            <div className="flex border-b border-border shrink-0">
+            <div className="flex border-b border-border shrink-0 px-1">
               {(["overview", "categories", "transactions"] as const).map((tab) => (
                 <button key={tab} onClick={() => setActiveTab(tab)}
-                  className={`flex-1 py-2 text-xs font-medium capitalize transition-colors ${activeTab === tab ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                  className={`flex-1 py-2.5 text-sm font-semibold capitalize transition-all ${activeTab === tab ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}>
                   {tab}
                 </button>
               ))}
             </div>
 
             {/* Tab content */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+              {/* Overview */}
               {activeTab === "overview" && (
                 <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <KpiCard label="Total Income" value={fmt(summary.totalIncome)} color="text-green-600" />
-                    <KpiCard label="Total Expenses" value={fmt(summary.totalExpenses)} color="text-red-500" />
-                    <KpiCard label="Net Savings" value={fmt(summary.net)} color={summary.net >= 0 ? "text-blue-600" : "text-red-500"} />
-                    <KpiCard label="Savings Rate" value={`${summary.savingsRate}%`} color={summary.savingsRate >= 20 ? "text-green-600" : summary.savingsRate >= 10 ? "text-yellow-600" : "text-red-500"} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <KpiCard label="Income" value={fmt(summary.totalIncome)} color="text-green-600" icon="💰" />
+                    <KpiCard label="Expenses" value={fmt(summary.totalExpenses)} color="text-red-500" icon="💸" />
+                    <KpiCard label="Net Savings" value={fmt(summary.net)} color={summary.net >= 0 ? "text-blue-600" : "text-red-500"} icon="📈" />
+                    <KpiCard label="Savings Rate" value={`${summary.savingsRate}%`} color={summary.savingsRate >= 20 ? "text-green-600" : summary.savingsRate >= 10 ? "text-yellow-600" : "text-red-500"} icon="📊" />
                   </div>
-                  <div className={`rounded-md px-3 py-2 text-xs font-medium ${summary.savingsRate >= 20 ? "bg-green-50 text-green-700" : summary.savingsRate >= 10 ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-700"}`}>
-                    {summary.savingsRate >= 20 ? "✅ Healthy savings rate — you're on track!" : summary.savingsRate >= 10 ? "⚠️ Moderate savings. Try to cut non-essential spending." : "🔴 Low savings rate. Review expenses carefully."}
+
+                  {/* Health indicator */}
+                  <div className={`rounded-xl px-4 py-3 text-sm font-semibold flex items-center gap-2.5 ${summary.savingsRate >= 20 ? "bg-green-50 text-green-800 border border-green-200" : summary.savingsRate >= 10 ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+                    <span className="text-base">{summary.savingsRate >= 20 ? "✅" : summary.savingsRate >= 10 ? "⚠️" : "🔴"}</span>
+                    {summary.savingsRate >= 20 ? "Healthy savings rate — you're on track!" : summary.savingsRate >= 10 ? "Moderate savings. Try to cut non-essential spending." : "Low savings rate. Review your expenses carefully."}
                   </div>
+
+                  {/* Top categories */}
                   <div>
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Top Spending Categories</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Top Spending</p>
                     {topCategories.slice(0, 4).map(([name, info]) => (
-                      <div key={name} className="mb-2">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${info.className}`}>{name}</span>
-                          <span className="text-xs font-semibold">{fmt(info.total)}</span>
+                      <div key={name} className="mb-3">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className={`text-xs px-2 py-0.5 rounded-md ${info.className}`}>{name}</span>
+                          <span className="text-sm font-bold">{fmt(info.total)}</span>
                         </div>
-                        <div className="h-1.5 bg-muted rounded-full">
-                          <div className="h-1.5 rounded-full" style={{ width: `${(info.total / maxCatTotal) * 100}%`, backgroundColor: info.color }} />
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-2 rounded-full transition-all" style={{ width: `${(info.total / maxCatTotal) * 100}%`, backgroundColor: info.color }} />
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="text-[10px] text-muted-foreground text-right">{summary.transactions.length} transactions analyzed</div>
+                  <p className="text-xs text-muted-foreground font-medium text-right">
+                    {summary.transactions.length} transactions analyzed
+                  </p>
                 </>
               )}
 
+              {/* Categories */}
               {activeTab === "categories" && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {topCategories.map(([name, info]) => (
-                    <div key={name} className="bg-white border border-border rounded-md p-2.5">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${info.className}`}>{name}</span>
-                        <span className="text-xs font-semibold">{fmt(info.total)}</span>
+                    <div key={name} className="bg-white border border-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center justify-between mb-2.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-md ${info.className}`}>{name}</span>
+                        <span className="text-base font-extrabold">{fmt(info.total)}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-muted rounded-full">
-                          <div className="h-1.5 rounded-full" style={{ width: `${(info.total / maxCatTotal) * 100}%`, backgroundColor: info.color }} />
-                        </div>
-                        <span className="text-[10px] text-muted-foreground shrink-0">{info.count} txn{info.count !== 1 ? "s" : ""}</span>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
+                        <div className="h-2 rounded-full" style={{ width: `${(info.total / maxCatTotal) * 100}%`, backgroundColor: info.color }} />
                       </div>
+                      <p className="text-xs text-muted-foreground font-semibold">{info.count} transaction{info.count !== 1 ? "s" : ""}</p>
                     </div>
                   ))}
                 </div>
               )}
 
+              {/* Transactions */}
               {activeTab === "transactions" && (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {summary.transactions.map((tx, i) => (
-                    <div key={i} className="flex items-start justify-between gap-2 bg-white border border-border rounded-md p-2">
+                    <div key={i} className="flex items-center gap-3 bg-white border border-border rounded-xl p-3 shadow-sm">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${tx.type === "credit" ? "bg-green-500" : "bg-red-500"}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{tx.description}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[10px] text-muted-foreground">{tx.date}</span>
-                          <span className={`text-[10px] px-1 py-0.5 rounded ${tx.category.className}`}>{tx.category.name}</span>
+                        <p className="text-sm font-semibold truncate">{tx.description}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-muted-foreground font-medium">{tx.date}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-md ${tx.category.className}`}>{tx.category.name}</span>
                         </div>
                       </div>
-                      <span className={`text-xs font-semibold shrink-0 ${tx.type === "credit" ? "text-green-600" : "text-red-500"}`}>
-                        {tx.type === "credit" ? "+" : "-"}{fmt(tx.amount)}
+                      <span className={`text-sm font-extrabold shrink-0 ${tx.type === "credit" ? "text-green-600" : "text-red-500"}`}>
+                        {tx.type === "credit" ? "+" : "−"}{fmt(tx.amount)}
                       </span>
                     </div>
                   ))}
@@ -490,19 +531,10 @@ export default function App() {
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="px-3 py-1.5 border-t border-border bg-muted/40 text-[10px] text-muted-foreground text-center shrink-0">
-        Bank Statement Analyzer Pro
+      {/* ── Footer ── */}
+      <footer className="px-4 py-2 border-t border-border bg-white text-xs text-muted-foreground text-center font-semibold shrink-0">
+        {appName} · Excel Add-in
       </footer>
-    </div>
-  );
-}
-
-function KpiCard({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div className="bg-white border border-border rounded-md p-2.5">
-      <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
-      <p className={`text-sm font-bold ${color}`}>{value}</p>
     </div>
   );
 }
