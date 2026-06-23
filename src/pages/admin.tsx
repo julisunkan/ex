@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   KeyRound, LogOut, RefreshCw, ShieldCheck, Copy, Check,
-  CreditCard, Palette, Database, Download, Upload, Save, Eye, EyeOff
+  CreditCard, Palette, Database, Download, Upload, Save, Eye, EyeOff,
+  Rocket, ExternalLink, AlertCircle, CheckCircle2, Terminal
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -416,14 +417,147 @@ function BackupTab({ pw }: { pw: string }) {
   );
 }
 
+// ── Setup Guide tab ───────────────────────────────────────────────────────────
+function Step({ done, children }: { done?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 items-start">
+      <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${done ? "bg-green-100 text-green-600" : "bg-muted text-muted-foreground"}`}>
+        {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+      </div>
+      <div className="text-sm leading-relaxed">{children}</div>
+    </div>
+  );
+}
+
+function CodeLine({ children }: { children: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex items-center gap-2 bg-gray-900 text-green-400 rounded-md px-3 py-2 font-mono text-xs my-1.5">
+      <Terminal className="w-3.5 h-3.5 shrink-0 text-gray-500" />
+      <span className="flex-1 select-all">{children}</span>
+      <button onClick={() => { navigator.clipboard.writeText(children); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+        className="text-gray-500 hover:text-white transition-colors">
+        {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+      </button>
+    </div>
+  );
+}
+
+function EnvRow({ name, required, desc }: { name: string; required?: boolean; desc: string }) {
+  return (
+    <div className="flex items-start gap-3 py-2.5 border-b last:border-0">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <code className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-800">{name}</code>
+          {required && <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">Required</Badge>}
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+function SetupTab() {
+  const backendUrl = API_BASE || "https://your-api.onrender.com";
+
+  return (
+    <div className="space-y-5">
+
+      {/* Render deployment */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Rocket className="w-4 h-4 text-primary" /> Render Deployment Guide
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">Step-by-step setup for deploying both services to Render.</p>
+        </CardHeader>
+        <CardContent className="space-y-5">
+
+          {/* Step 1 */}
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-foreground">1 · Deploy the Backend (Web Service)</p>
+            <div className="space-y-2 pl-1">
+              <Step>Create a new <strong>Web Service</strong> on <a href="https://render.com" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2 inline-flex items-center gap-0.5">render.com <ExternalLink className="w-3 h-3" /></a> and connect your Git repo.</Step>
+              <Step>Set <strong>Root Directory</strong> to <code className="bg-muted px-1 rounded text-xs">server</code></Step>
+              <Step>Use these build &amp; start commands:
+                <CodeLine>npm install</CodeLine>
+                <CodeLine>node index.js</CodeLine>
+              </Step>
+              <Step>Add the environment variables listed in the table below.</Step>
+              <Step>Deploy — copy the service URL (e.g. <code className="bg-muted px-1 rounded text-xs">https://bank-analyzer-api.onrender.com</code>).</Step>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-2">
+            <p className="text-sm font-semibold text-foreground">2 · Deploy the Frontend (Static Site)</p>
+            <div className="space-y-2 pl-1">
+              <Step>Create a new <strong>Static Site</strong> on Render from the same repo.</Step>
+              <Step>Leave <strong>Root Directory</strong> blank (uses repo root).</Step>
+              <Step>Build command &amp; publish directory:
+                <CodeLine>npm install && npm run build</CodeLine>
+                <span className="text-xs text-muted-foreground">Publish directory: <code className="bg-muted px-1 rounded">dist/public</code></span>
+              </Step>
+              <Step>Set <code className="bg-muted px-1 rounded text-xs">VITE_API_URL</code> to your backend URL from Step 1.</Step>
+              <Step>Deploy — your add-in UI is now live.</Step>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Env vars table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Backend Environment Variables</CardTitle>
+          <p className="text-sm text-muted-foreground">Set these in Render → your Web Service → Environment.</p>
+        </CardHeader>
+        <CardContent className="p-0 px-4 pb-2">
+          <EnvRow name="ADMIN_PASSWORD" required desc="Password to access this admin panel. Choose something strong." />
+          <EnvRow name="USDT_WALLET_ADDRESS" required desc="Your USDT wallet address where customers send payments." />
+          <EnvRow name="USDT_NETWORK" desc='Blockchain network: "tron" (default), "bsc", or "eth".' />
+          <EnvRow name="USDT_PRICE" desc='Pro license price in USDT. Default: "5".' />
+          <EnvRow name="TRONGRID_API_KEY" desc="TronGrid API key — raises rate limits for Tron payment verification." />
+          <EnvRow name="BSCSCAN_API_KEY" desc="BscScan API key — raises rate limits for BSC payment verification." />
+          <EnvRow name="ETHERSCAN_API_KEY" desc="Etherscan API key — raises rate limits for ETH payment verification." />
+        </CardContent>
+      </Card>
+
+      {/* Frontend env var */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Frontend Environment Variable</CardTitle>
+          <p className="text-sm text-muted-foreground">Set this in Render → your Static Site → Environment (before building).</p>
+        </CardHeader>
+        <CardContent className="p-0 px-4 pb-2">
+          <EnvRow name="VITE_API_URL" required desc={`URL of your deployed backend, e.g. ${backendUrl}`} />
+        </CardContent>
+      </Card>
+
+      {/* manifest.xml note */}
+      <Card className="border-amber-200 bg-amber-50/50">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex gap-3">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-amber-800 mb-1">Update manifest.xml before sideloading</p>
+              <p className="text-amber-700">Set the <code className="bg-amber-100 px-1 rounded text-xs">SourceLocation</code> URL in <code className="bg-amber-100 px-1 rounded text-xs">manifest.xml</code> to your deployed frontend URL so Excel loads the correct add-in.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+    </div>
+  );
+}
+
 // ── Main admin page ───────────────────────────────────────────────────────────
-type Tab = "licenses" | "payment" | "appearance" | "backup";
+type Tab = "licenses" | "payment" | "appearance" | "backup" | "setup";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "licenses",   label: "Licenses",   icon: <KeyRound className="w-4 h-4" /> },
   { id: "payment",    label: "Payment",    icon: <CreditCard className="w-4 h-4" /> },
   { id: "appearance", label: "Appearance", icon: <Palette className="w-4 h-4" /> },
   { id: "backup",     label: "Backup",     icon: <Database className="w-4 h-4" /> },
+  { id: "setup",      label: "Setup Guide", icon: <Rocket className="w-4 h-4" /> },
 ];
 
 export default function AdminPage() {
@@ -491,6 +625,7 @@ export default function AdminPage() {
         {tab === "payment"    && settings && <PaymentTab pw={pw} settings={settings} onSaved={setSettings} />}
         {tab === "appearance" && settings && <AppearanceTab pw={pw} settings={settings} onSaved={setSettings} />}
         {tab === "backup"     && <BackupTab pw={pw} />}
+        {tab === "setup"      && <SetupTab />}
         {(tab === "payment" || tab === "appearance") && !settings && (
           <div className="text-center py-12 text-muted-foreground text-sm">Loading settings…</div>
         )}
