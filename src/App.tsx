@@ -222,7 +222,7 @@ export default function App() {
 
         {/* ── IDLE ── */}
         {step === "idle" && (
-          <div className="flex flex-col items-center justify-center h-full px-5 py-8 text-center gap-7">
+          <div className="flex flex-col items-center justify-center min-h-full px-5 py-8 text-center gap-7">
             {/* Hero */}
             <div className="flex flex-col items-center gap-3">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center shadow-inner">
