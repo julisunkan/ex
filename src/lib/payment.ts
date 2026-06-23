@@ -2,6 +2,12 @@ const LICENSE_KEY = "bsa_excel_pro_license";
 const PRODUCT_PRICE_USDT = 5;
 const PRODUCT_ID = "excel_addin_pro";
 
+const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+function apiUrl(path: string) {
+  return `${API_BASE}/api/payments${path}`;
+}
+
 export function getLicense(): string | null {
   try {
     return localStorage.getItem(LICENSE_KEY);
@@ -30,7 +36,7 @@ export const PRICE_USDT = PRODUCT_PRICE_USDT;
 
 export async function fetchAdminWallet(): Promise<{ address: string; network: string; price: number } | null> {
   try {
-    const res = await fetch("/api/payments/config");
+    const res = await fetch(apiUrl("/config"));
     if (!res.ok) return null;
     return res.json();
   } catch {
@@ -40,7 +46,7 @@ export async function fetchAdminWallet(): Promise<{ address: string; network: st
 
 export async function verifyPayment(txHash: string): Promise<{ success: boolean; licenseKey?: string; error?: string }> {
   try {
-    const res = await fetch("/api/payments/verify", {
+    const res = await fetch(apiUrl("/verify"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ txHash, productId: PRODUCT_ID }),
@@ -57,7 +63,7 @@ export async function verifyPayment(txHash: string): Promise<{ success: boolean;
 
 export async function checkLicenseValid(licenseKey: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/payments/check/${encodeURIComponent(licenseKey)}`);
+    const res = await fetch(apiUrl(`/check/${encodeURIComponent(licenseKey)}`));
     if (!res.ok) return false;
     const data = await res.json();
     return data.valid === true;
