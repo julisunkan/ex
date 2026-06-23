@@ -28,7 +28,7 @@
        https://your-app.replit.app/excel-addin/
   -->
   <DefaultSettings>
-    <SourceLocation DefaultValue="SOURCE_URL_PLACEHOLDER" />
+    <SourceLocation DefaultValue="https://bank-analyzer-ui.onrender.com/" />
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
