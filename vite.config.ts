@@ -42,6 +42,12 @@ export default defineConfig(async () => ({
     fs: {
       strict: true,
     },
+    proxy: {
+      "/api": {
+        target: "http://localhost:3001",
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port: 5000,
