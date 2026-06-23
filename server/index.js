@@ -12,6 +12,7 @@ app.use(express.json());
 
 app.use("/api/payments", paymentsRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/admin", settingsRouter);
 app.use("/api/config", settingsRouter);
 
 app.get("/", (_req, res) => res.send("Bank Statement Analyzer API is running. Use /api/health to check status."));
