@@ -10,7 +10,7 @@ import {
   type ColumnMap,
 } from "./lib/excel";
 import { useCurrency, CURRENCIES } from "./hooks/use-currency";
-import { buildSummary, type Summary, type Transaction } from "./lib/categorizer";
+import { buildSummary, CATEGORIES, type Category, type Summary, type Transaction } from "./lib/categorizer";
 import { parsePastedText, writeToExcelSheet } from "./lib/csv-parser";
 import { exportToPdf, buildReportHtml } from "./lib/pdf";
 import { getLicense, checkLicenseValid } from "./lib/payment";
@@ -147,6 +147,8 @@ export default function App() {
   const [pdfEmailSent, setPdfEmailSent] = useState(false);
   const [pdfEmailError, setPdfEmailError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [categoryOverrides, setCategoryOverrides] = useState<Record<number, Category>>({});
+  const [expandedTxRow, setExpandedTxRow] = useState<number | null>(null);
 
   const lowestPlanPrice = config.plans.length > 0 ? Math.min(...config.plans.map((p) => p.price)) : 5;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -337,6 +339,17 @@ export default function App() {
   const handleBudgetTab = useCallback(() => { if (requirePro("budget")) setActiveTab("budget"); }, [requirePro]);
   const handleToggleRecurring = useCallback(() => { if (requirePro("recurring")) setShowRecurring((v) => !v); }, [requirePro]);
 
+  const handleRecategorize = useCallback((row: number, newCat: Category) => {
+    if (!summary) return;
+    const newOverrides = { ...categoryOverrides, [row]: newCat };
+    setCategoryOverrides(newOverrides);
+    setExpandedTxRow(null);
+    const updatedTxns = summary.transactions.map((tx) =>
+      newOverrides[tx.row] ? { ...tx, category: newOverrides[tx.row] } : tx
+    );
+    setSummary(buildSummary(updatedTxns));
+  }, [summary, categoryOverrides]);
+
   const reset = () => {
     setStep("idle"); setSummary(null); setError("");
     setExportDone(false); setActiveTab("overview");
@@ -345,6 +358,7 @@ export default function App() {
     setBudgets({}); setShowDuplicates(false); setShowRecurring(false);
     setActionError(""); setShowPdfDialog(false); setHighlightDone(false);
     setClearing(false); setClearDone(false);
+    setCategoryOverrides({}); setExpandedTxRow(null);
   };
 
   const openSubscription = () => setStep("subscription");
@@ -1188,22 +1202,59 @@ export default function App() {
                   ) : (
                     filteredTxns.map((tx, i) => {
                       const isDupe = summary.duplicateRows.has(tx.row);
+                      const isExpanded = expandedTxRow === tx.row;
+                      const wasOverridden = !!categoryOverrides[tx.row];
                       return (
-                        <div key={i} className={`flex items-start gap-3 bg-white border rounded-xl p-3 shadow-sm ${isDupe && isPro ? "border-amber-300 bg-amber-50/40" : "border-border"}`}>
-                          <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${tx.type === "credit" ? "bg-green-500" : "bg-red-500"}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate">{tx.description}</p>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                              <span className="text-xs text-muted-foreground font-medium">{tx.date}</span>
-                              <span className={`text-xs px-1.5 py-0.5 rounded-md ${tx.category.className}`}>{tx.category.name}</span>
-                              {isDupe && isPro && (
-                                <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">⚠ Possible Duplicate</span>
-                              )}
+                        <div key={i} className={`bg-white border rounded-xl shadow-sm overflow-hidden ${isDupe && isPro ? "border-amber-300 bg-amber-50/40" : isExpanded ? "border-primary" : "border-border"}`}>
+                          {/* Main row */}
+                          <div className="flex items-start gap-3 p-3">
+                            <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${tx.type === "credit" ? "bg-green-500" : "bg-red-500"}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold truncate">{tx.description}</p>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                <span className="text-xs text-muted-foreground font-medium">{tx.date}</span>
+                                <button
+                                  data-testid={`btn-recategorize-${tx.row}`}
+                                  onClick={() => setExpandedTxRow(isExpanded ? null : tx.row)}
+                                  title="Tap to change category"
+                                  className={`text-xs px-1.5 py-0.5 rounded-md transition-opacity hover:opacity-80 active:opacity-60 ${tx.category.className} ${wasOverridden ? "ring-1 ring-offset-1 ring-primary/40" : ""}`}
+                                >
+                                  {tx.category.name} {isExpanded ? "▲" : "▼"}
+                                </button>
+                                {isDupe && isPro && (
+                                  <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">⚠ Possible Duplicate</span>
+                                )}
+                              </div>
                             </div>
+                            <span className={`text-sm font-extrabold shrink-0 ${tx.type === "credit" ? "text-green-600" : "text-red-500"}`}>
+                              {tx.type === "credit" ? "+" : "−"}{fmt(tx.amount)}
+                            </span>
                           </div>
-                          <span className={`text-sm font-extrabold shrink-0 ${tx.type === "credit" ? "text-green-600" : "text-red-500"}`}>
-                            {tx.type === "credit" ? "+" : "−"}{fmt(tx.amount)}
-                          </span>
+                          {/* Category picker */}
+                          {isExpanded && (
+                            <div className="border-t border-border px-3 pb-3 pt-2 bg-muted/30">
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Change category</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {CATEGORIES.map((cat) => (
+                                  <button
+                                    key={cat.name}
+                                    data-testid={`btn-cat-${cat.name.replace(/\s+/g, "-").toLowerCase()}-${tx.row}`}
+                                    onClick={() => handleRecategorize(tx.row, cat)}
+                                    className={`text-xs px-2 py-1 rounded-lg font-medium transition-all hover:opacity-80 active:scale-95 ${cat.className} ${tx.category.name === cat.name ? "ring-2 ring-offset-1 ring-foreground/30" : ""}`}
+                                  >
+                                    {cat.name}
+                                  </button>
+                                ))}
+                                <button
+                                  data-testid={`btn-cat-other-${tx.row}`}
+                                  onClick={() => handleRecategorize(tx.row, { name: "Other", color: "#64748b", className: "cat-other", keywords: [], type: "any" })}
+                                  className={`text-xs px-2 py-1 rounded-lg font-medium transition-all hover:opacity-80 active:scale-95 cat-other ${tx.category.name === "Other" ? "ring-2 ring-offset-1 ring-foreground/30" : ""}`}
+                                >
+                                  Other
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })
