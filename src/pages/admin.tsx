@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   KeyRound, LogOut, RefreshCw, ShieldCheck, Copy, Check,
   CreditCard, Palette, Database, Download, Upload, Save, Eye, EyeOff,
-  Rocket, ExternalLink, AlertCircle, CheckCircle2, Terminal, Bell
+  Rocket, ExternalLink, AlertCircle, CheckCircle2, Terminal, Bell, TrendingUp,
+  Users, DollarSign, Activity, BarChart3
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -1155,16 +1156,252 @@ function NotificationsTab({ pw, settings, onSaved }: { pw: string; settings: Set
   );
 }
 
+// ── Revenue tab ────────────────────────────────────────────────────────────────
+interface RevenueData {
+  totalRevenue: number;
+  mrr: number;
+  totalLicenses: number;
+  activeLicenses: number;
+  paidLicenses: number;
+  withEmail: number;
+  byPlan: { planId: string; count: number; revenue: number }[];
+  monthly: { month: string; activations: number; revenue: number }[];
+}
+
+const PLAN_LABELS: Record<string, string> = {
+  monthly: "Monthly", quarterly: "3-Month", biannual: "6-Month", annual: "Annual",
+};
+const PLAN_COLORS: Record<string, string> = {
+  monthly: "bg-blue-500", quarterly: "bg-violet-500", biannual: "bg-amber-500", annual: "bg-emerald-500",
+};
+
+function RevenueTab({ pw }: { pw: string }) {
+  const [data, setData] = useState<RevenueData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function load() {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/revenue`, { headers: { "x-admin-password": pw } });
+      if (!res.ok) throw new Error("Failed to load");
+      setData(await res.json());
+    } catch { setError("Could not load revenue data."); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="text-center py-20 text-muted-foreground text-sm">Loading revenue data…</div>;
+  if (error || !data) return (
+    <div className="text-center py-20 space-y-2">
+      <p className="text-muted-foreground text-sm">{error || "No data"}</p>
+      <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+    </div>
+  );
+
+  const maxMonthlyRev = Math.max(...data.monthly.map(m => m.revenue), 1);
+  const maxMonthlyAct = Math.max(...data.monthly.map(m => m.activations), 1);
+  const maxPlanRev    = Math.max(...data.byPlan.map(p => p.revenue), 1);
+  const last13 = data.monthly.slice(-13);
+
+  function fmt(n: number) { return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
+  function fmtMonth(s: string) {
+    const [y, m] = s.split("-");
+    return new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card data-testid="card-total-revenue">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Revenue</span>
+              <DollarSign className="w-4 h-4 text-emerald-500" />
+            </div>
+            <p className="text-2xl font-bold text-emerald-600" data-testid="text-total-revenue">{fmt(data.totalRevenue)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{data.paidLicenses} paid license{data.paidLicenses !== 1 ? "s" : ""}</p>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-mrr">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Est. MRR</span>
+              <TrendingUp className="w-4 h-4 text-blue-500" />
+            </div>
+            <p className="text-2xl font-bold text-blue-600" data-testid="text-mrr">{fmt(data.mrr)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">from active subscriptions</p>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-active-licenses">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active</span>
+              <Users className="w-4 h-4 text-violet-500" />
+            </div>
+            <p className="text-2xl font-bold text-violet-600" data-testid="text-active-licenses">{data.activeLicenses}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">of {data.totalLicenses} total issued</p>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-arpu">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ARPU</span>
+              <Activity className="w-4 h-4 text-amber-500" />
+            </div>
+            <p className="text-2xl font-bold text-amber-600" data-testid="text-arpu">
+              {fmt(data.paidLicenses > 0 ? data.totalRevenue / data.paidLicenses : 0)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">avg revenue per user</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Monthly revenue chart */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-muted-foreground" /> Monthly Revenue (last 13 months)
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={load} className="h-7 px-2" data-testid="button-refresh-revenue">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {last13.every(m => m.revenue === 0) ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">No paid license revenue recorded yet.</div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-end gap-1 h-40" data-testid="chart-monthly-revenue">
+                {last13.map(m => (
+                  <div key={m.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                    <div
+                      className="w-full bg-blue-500 rounded-t transition-all hover:bg-blue-600"
+                      style={{ height: `${Math.max(2, (m.revenue / maxMonthlyRev) * 140)}px` }}
+                      title={`${fmtMonth(m.month)}: ${fmt(m.revenue)}`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-1">
+                {last13.map(m => (
+                  <div key={m.month} className="flex-1 text-center min-w-0">
+                    <span className="text-[9px] text-muted-foreground truncate block">{fmtMonth(m.month)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-1 mt-1">
+                {last13.map(m => (
+                  <div key={m.month} className="flex-1 text-center min-w-0">
+                    <span className="text-[9px] font-medium text-blue-700 truncate block">{m.revenue > 0 ? fmt(m.revenue) : ""}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Monthly activations chart */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-muted-foreground" /> Monthly Activations (last 13 months)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {last13.every(m => m.activations === 0) ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">No activations recorded yet.</div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-end gap-1 h-32" data-testid="chart-monthly-activations">
+                {last13.map(m => (
+                  <div key={m.month} className="flex-1 flex flex-col items-center min-w-0">
+                    <div
+                      className="w-full bg-violet-400 rounded-t transition-all hover:bg-violet-500"
+                      style={{ height: `${Math.max(2, (m.activations / maxMonthlyAct) * 112)}px` }}
+                      title={`${fmtMonth(m.month)}: ${m.activations} activation${m.activations !== 1 ? "s" : ""}`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-1">
+                {last13.map(m => (
+                  <div key={m.month} className="flex-1 text-center min-w-0">
+                    <span className="text-[9px] text-muted-foreground truncate block">{fmtMonth(m.month)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-1 mt-1">
+                {last13.map(m => (
+                  <div key={m.month} className="flex-1 text-center min-w-0">
+                    <span className="text-[9px] font-medium text-violet-700 truncate block">{m.activations > 0 ? m.activations : ""}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Revenue by plan */}
+      {data.byPlan.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Revenue by Plan</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3" data-testid="section-revenue-by-plan">
+            {data.byPlan.map(p => (
+              <div key={p.planId} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{PLAN_LABELS[p.planId] ?? p.planId}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-muted-foreground text-xs">{p.count} license{p.count !== 1 ? "s" : ""}</span>
+                    <span className="font-semibold w-20 text-right">{fmt(p.revenue)}</span>
+                  </div>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${PLAN_COLORS[p.planId] ?? "bg-gray-400"}`}
+                    style={{ width: `${(p.revenue / maxPlanRev) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="pt-2 border-t flex items-center justify-between text-sm font-semibold">
+              <span>Total</span>
+              <span className="text-emerald-600">{fmt(data.totalRevenue)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {data.byPlan.length === 0 && (
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground text-sm">
+            No paid license sales yet. Revenue will appear here once customers purchase subscriptions.
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ── Main admin page ───────────────────────────────────────────────────────────
-type Tab = "licenses" | "payment" | "appearance" | "notifications" | "backup" | "setup";
+type Tab = "licenses" | "revenue" | "payment" | "appearance" | "notifications" | "backup" | "setup";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "licenses",      label: "Licenses",      icon: <KeyRound className="w-4 h-4" /> },
-  { id: "payment",       label: "Payment",       icon: <CreditCard className="w-4 h-4" /> },
-  { id: "notifications", label: "Notifications", icon: <Bell className="w-4 h-4" /> },
-  { id: "appearance",    label: "Appearance",    icon: <Palette className="w-4 h-4" /> },
-  { id: "backup",        label: "Backup",        icon: <Database className="w-4 h-4" /> },
-  { id: "setup",         label: "Setup Guide",   icon: <Rocket className="w-4 h-4" /> },
+  { id: "revenue",       label: "Revenue",        icon: <TrendingUp className="w-4 h-4" /> },
+  { id: "payment",       label: "Payment",        icon: <CreditCard className="w-4 h-4" /> },
+  { id: "notifications", label: "Notifications",  icon: <Bell className="w-4 h-4" /> },
+  { id: "appearance",    label: "Appearance",     icon: <Palette className="w-4 h-4" /> },
+  { id: "backup",        label: "Backup",         icon: <Database className="w-4 h-4" /> },
+  { id: "setup",         label: "Setup Guide",    icon: <Rocket className="w-4 h-4" /> },
 ];
 
 export default function AdminPage() {
@@ -1229,6 +1466,7 @@ export default function AdminPage() {
 
         {/* Tab content */}
         {tab === "licenses"      && <LicensesTab pw={pw} />}
+        {tab === "revenue"       && <RevenueTab pw={pw} />}
         {tab === "payment"       && settings && <PaymentTab pw={pw} settings={settings} onSaved={setSettings} />}
         {tab === "notifications" && settings && <NotificationsTab pw={pw} settings={settings} onSaved={setSettings} />}
         {tab === "appearance"    && settings && <AppearanceTab pw={pw} settings={settings} onSaved={setSettings} />}
