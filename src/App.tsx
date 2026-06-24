@@ -4,6 +4,7 @@ import {
   detectColumns,
   readTransactions,
   highlightTransactions,
+  clearHighlights,
   createSummarySheet,
   exportToCsv,
   fmt,
@@ -121,6 +122,8 @@ export default function App() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [highlighting, setHighlighting] = useState(false);
   const [highlightDone, setHighlightDone] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearDone, setClearDone] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportDone, setExportDone] = useState(false);
   const [activeTab, setActiveTab] = useState<ResultTab>("overview");
@@ -233,6 +236,25 @@ export default function App() {
     } finally { setHighlighting(false); }
   }, [summary]);
 
+  const doClearHighlights = useCallback(async () => {
+    setClearing(true);
+    setClearDone(false);
+    setActionError("");
+    try {
+      await runExcel(async (ctx) => {
+        const sheet = ctx.workbook.worksheets.getActiveWorksheet();
+        await clearHighlights(sheet);
+      });
+      setClearDone(true);
+      setHighlightDone(false);
+      setTimeout(() => setClearDone(false), 2000);
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setClearing(false);
+    }
+  }, []);
+
   const doExport = useCallback(async () => {
     if (!summary) return;
     setExporting(true);
@@ -296,6 +318,7 @@ export default function App() {
     setTxSearch(""); setTxCategoryFilter("All"); setTxTypeFilter("all");
     setBudgets({}); setShowDuplicates(false); setShowRecurring(false);
     setActionError(""); setShowPdfDialog(false); setHighlightDone(false);
+    setClearing(false); setClearDone(false);
   };
 
   const openSubscription = () => setStep("subscription");
@@ -654,8 +677,8 @@ export default function App() {
           <div className="flex flex-col h-full">
 
             {/* Action buttons row */}
-            <div className="flex gap-2 px-4 pt-4 pb-2 shrink-0">
-              <ActionBtn variant="secondary" onClick={handleHighlight} disabled={highlighting} size="sm">
+            <div className="flex gap-2 px-4 pt-4 pb-2 shrink-0 flex-wrap">
+              <ActionBtn variant="secondary" onClick={handleHighlight} disabled={highlighting || clearing} size="sm">
                 {highlighting
                   ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   : highlightDone
@@ -664,6 +687,15 @@ export default function App() {
                 }
                 {highlightDone ? "Done!" : "Highlight"}
                 {!isPro && <span className="text-[10px] opacity-60">🔒</span>}
+              </ActionBtn>
+              <ActionBtn variant="ghost" onClick={doClearHighlights} disabled={clearing || highlighting} size="sm">
+                {clearing
+                  ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  : clearDone
+                  ? <svg className="w-3.5 h-3.5 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                  : <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+                }
+                {clearDone ? "Cleared!" : "Clear"}
               </ActionBtn>
               <ActionBtn onClick={handleExport} disabled={exporting} size="sm">
                 {exporting

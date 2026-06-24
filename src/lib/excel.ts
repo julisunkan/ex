@@ -115,6 +115,16 @@ export async function highlightTransactions(
   await ctx.sync();
 }
 
+export async function clearHighlights(sheet: Excel.Worksheet): Promise<void> {
+  const ctx = sheet.context as Excel.RequestContext;
+  const usedRange = sheet.getUsedRange();
+  usedRange.load("rowCount,columnCount");
+  await ctx.sync();
+  usedRange.format.fill.clear();
+  usedRange.format.font.color = "";
+  await ctx.sync();
+}
+
 export async function createSummarySheet(summary: Summary, context: Excel.RequestContext): Promise<void> {
   const sheetName = "BSA Summary";
 
