@@ -1054,10 +1054,13 @@ export default function App() {
                   </div>
 
                   {/* Category breakdown */}
-                  {topCategories.map(([name, info]) => (
-                    <div key={name} className="bg-white border border-border rounded-xl p-4 shadow-sm">
+                  {topCategories.map(([name, info], idx) => {
+                    const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : null;
+                    return (
+                    <div key={name} className={`bg-white border rounded-xl p-4 shadow-sm ${idx < 3 ? "border-amber-200" : "border-border"}`}>
                       <div className="flex items-center justify-between mb-2.5">
                         <div className="flex items-center gap-2 min-w-0">
+                          {medal && <span className="text-base shrink-0 leading-none">{medal}</span>}
                           <span className={`text-xs px-2 py-0.5 rounded-md shrink-0 ${info.className}`}>{name}</span>
                           <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
                             {info.count} tx
@@ -1075,7 +1078,7 @@ export default function App() {
                         )}
                       </div>
                     </div>
-                  ))}
+                  );})}
                 </div>
               )}
 
