@@ -24,7 +24,7 @@ function catBadge(name: string, color: string): string {
   return `<span style="background:${bg};color:${color};border:1px solid ${color}44;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${name}</span>`;
 }
 
-export function buildReportHtml(summary: Summary, appName: string, currencySymbol = "₦"): string {
+export function buildReportHtml(summary: Summary, appName: string, currencySymbol = "₦", notes: Record<number, string> = {}): string {
   const fmtNum = makeFmt(currencySymbol);
   const sortedCats = Object.entries(summary.byCategory).sort((a, b) => b[1].total - a[1].total);
   const maxCat = sortedCats[0]?.[1].total || 1;
@@ -172,9 +172,13 @@ export function buildReportHtml(summary: Summary, appName: string, currencySymbo
       const dupeTag = isDupe
         ? `<span style="font-size:9px;font-weight:700;background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:3px;margin-left:4px">⚠ DUP</span>`
         : "";
+      const note = notes[tx.row] ? notes[tx.row].trim() : "";
+      const noteTag = note
+        ? `<div style="font-size:9px;color:#64748b;font-style:italic;margin-top:2px">📝 ${note}</div>`
+        : "";
       return `<tr style="${isDupe ? "background:#fffbeb" : ""}">
         <td style="font-size:10px;color:#64748b;white-space:nowrap">${tx.date}</td>
-        <td style="font-size:11px;max-width:200px;word-break:break-word">${tx.description}${dupeTag}</td>
+        <td style="font-size:11px;max-width:200px;word-break:break-word">${tx.description}${dupeTag}${noteTag}</td>
         <td>${catBadge(tx.category.name, tx.category.color)}</td>
         <td style="text-align:center">
           <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;${tx.type === "credit" ? "background:#dcfce7;color:#15803d" : "background:#fee2e2;color:#b91c1c"}">
@@ -313,8 +317,8 @@ export function buildReportHtml(summary: Summary, appName: string, currencySymbo
   return html;
 }
 
-export function exportToPdf(summary: Summary, appName: string, currencySymbol = "₦"): void {
-  const html = buildReportHtml(summary, appName, currencySymbol);
+export function exportToPdf(summary: Summary, appName: string, currencySymbol = "₦", notes: Record<number, string> = {}): void {
+  const html = buildReportHtml(summary, appName, currencySymbol, notes);
   const win = window.open("", "_blank");
   if (!win) {
     alert("Pop-up blocked. Please allow pop-ups for this add-in to export PDF.");

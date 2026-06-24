@@ -149,6 +149,7 @@ export default function App() {
   const [actionError, setActionError] = useState("");
   const [categoryOverrides, setCategoryOverrides] = useState<Record<number, Category>>({});
   const [expandedTxRow, setExpandedTxRow] = useState<number | null>(null);
+  const [txNotes, setTxNotes] = useState<Record<number, string>>({});
 
   const lowestPlanPrice = config.plans.length > 0 ? Math.min(...config.plans.map((p) => p.price)) : 5;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -297,20 +298,20 @@ export default function App() {
 
   const doExportCsv = useCallback(() => {
     if (!summary) return;
-    exportToCsv(summary);
-  }, [summary]);
+    exportToCsv(summary, txNotes);
+  }, [summary, txNotes]);
 
   const doExportPdf = useCallback(() => {
     if (!summary) return;
-    exportToPdf(summary, appName, symbol);
-  }, [summary, appName, symbol]);
+    exportToPdf(summary, appName, symbol, txNotes);
+  }, [summary, appName, symbol, txNotes]);
 
   const doSendReportByEmail = useCallback(async (email: string) => {
     if (!summary) return;
     setPdfEmailSending(true);
     setPdfEmailError("");
     try {
-      const html = buildReportHtml(summary, appName, symbol);
+      const html = buildReportHtml(summary, appName, symbol, txNotes);
       const apiBase = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
       const res = await fetch(`${apiBase}/api/send-report`, {
         method: "POST",
@@ -358,7 +359,7 @@ export default function App() {
     setBudgets({}); setShowDuplicates(false); setShowRecurring(false);
     setActionError(""); setShowPdfDialog(false); setHighlightDone(false);
     setClearing(false); setClearDone(false);
-    setCategoryOverrides({}); setExpandedTxRow(null);
+    setCategoryOverrides({}); setExpandedTxRow(null); setTxNotes({});
   };
 
   const openSubscription = () => setStep("subscription");
@@ -1252,6 +1253,19 @@ export default function App() {
                                 >
                                   Other
                                 </button>
+                              </div>
+                              {/* Notes field */}
+                              <div className="mt-3">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Note</p>
+                                <input
+                                  data-testid={`input-note-${tx.row}`}
+                                  type="text"
+                                  placeholder="Add a memo for this transaction…"
+                                  maxLength={140}
+                                  value={txNotes[tx.row] ?? ""}
+                                  onChange={(e) => setTxNotes((prev) => ({ ...prev, [tx.row]: e.target.value }))}
+                                  className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground/50"
+                                />
                               </div>
                             </div>
                           )}
