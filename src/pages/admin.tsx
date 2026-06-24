@@ -7,7 +7,7 @@ import {
   KeyRound, LogOut, RefreshCw, ShieldCheck, Copy, Check,
   CreditCard, Palette, Database, Download, Upload, Save, Eye, EyeOff,
   Rocket, ExternalLink, AlertCircle, CheckCircle2, Terminal, Bell, TrendingUp,
-  Users, DollarSign, Activity, BarChart3
+  Users, DollarSign, Activity, BarChart3, TicketCheck
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -1392,11 +1392,212 @@ function RevenueTab({ pw }: { pw: string }) {
 }
 
 // ── Main admin page ───────────────────────────────────────────────────────────
-type Tab = "licenses" | "revenue" | "payment" | "appearance" | "notifications" | "backup" | "setup";
+type Tab = "licenses" | "revenue" | "payment" | "appearance" | "notifications" | "backup" | "setup" | "tickets";
+
+// ── Tickets tab ────────────────────────────────────────────────────────────────
+interface Ticket {
+  id: string; name: string; email: string; licenseKey: string | null;
+  category: string; subject: string; message: string;
+  status: "open" | "resolved" | "closed"; createdAt: string;
+  adminReply: string | null; repliedAt: string | null;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  open:     "bg-amber-100 text-amber-700",
+  resolved: "bg-green-100 text-green-700",
+  closed:   "bg-gray-100 text-gray-600",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  general: "General", billing: "Billing", license: "License",
+  bug: "Bug", feature: "Feature", other: "Other",
+};
+
+function TicketsTab({ pw }: { pw: string }) {
+  const [data, setData] = useState<{ total: number; tickets: Ticket[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<"" | "open" | "resolved" | "closed">("");
+  const [selected, setSelected] = useState<Ticket | null>(null);
+  const [reply, setReply] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    const url = filter ? `${API_BASE}/api/tickets?status=${filter}` : `${API_BASE}/api/tickets`;
+    const res = await fetch(url, { headers: { "x-admin-password": pw } });
+    if (res.ok) setData(await res.json());
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [filter]);
+
+  async function updateTicket(id: string, patch: { status?: string; adminReply?: string }) {
+    setSaving(true);
+    const res = await fetch(`${API_BASE}/api/tickets/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      body: JSON.stringify(patch),
+    });
+    setSaving(false);
+    if (res.ok) { await load(); setSelected(null); setReply(""); }
+  }
+
+  async function deleteTicket(id: string) {
+    setDeleting(id);
+    await fetch(`${API_BASE}/api/tickets/${id}`, { method: "DELETE", headers: { "x-admin-password": pw } });
+    setDeleting(null);
+    if (selected?.id === id) setSelected(null);
+    load();
+  }
+
+  const tickets = data?.tickets ?? [];
+  const openCount = data ? (data.tickets.filter(t => t.status === "open").length) : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold">Support Tickets</h2>
+          <p className="text-sm text-muted-foreground">{data?.total ?? 0} total · {openCount} open</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={filter}
+            onChange={e => setFilter(e.target.value as typeof filter)}
+            className="text-sm border border-border rounded-lg px-2.5 py-1.5 bg-white"
+          >
+            <option value="">All</option>
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      </div>
+
+      {loading && <div className="text-center py-12 text-muted-foreground text-sm">Loading…</div>}
+
+      {!loading && tickets.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground text-sm">No tickets found.</div>
+      )}
+
+      {/* Detail view */}
+      {selected && (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS_COLORS[selected.status]}`}>
+                    {selected.status.toUpperCase()}
+                  </span>
+                  <span className="text-xs font-mono text-muted-foreground">{selected.id}</span>
+                  <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                    {CATEGORY_LABELS[selected.category] ?? selected.category}
+                  </span>
+                </div>
+                <CardTitle className="text-base leading-snug">{selected.subject}</CardTitle>
+              </div>
+              <button onClick={() => { setSelected(null); setReply(""); }}
+                className="text-muted-foreground hover:text-foreground shrink-0">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-xs space-y-0.5 text-muted-foreground">
+              <p><span className="font-semibold text-foreground">From:</span> {selected.name} &lt;{selected.email}&gt;</p>
+              {selected.licenseKey && <p><span className="font-semibold text-foreground">License:</span> <code className="font-mono">{selected.licenseKey}</code></p>}
+              <p><span className="font-semibold text-foreground">Received:</span> {fmtDate(selected.createdAt)}</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap border border-border">
+              {selected.message}
+            </div>
+
+            {selected.adminReply && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1">
+                <p className="text-xs font-bold text-blue-700">Your Reply · {selected.repliedAt ? fmtDate(selected.repliedAt) : ""}</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{selected.adminReply}</p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold">{selected.adminReply ? "Update Reply" : "Reply to Customer"}</label>
+              <textarea
+                value={reply}
+                onChange={e => setReply(e.target.value)}
+                placeholder="Type your reply…"
+                rows={4}
+                className="w-full rounded-lg border border-border p-3 text-sm resize-none focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => updateTicket(selected.id, { adminReply: reply })} disabled={saving || !reply.trim()}>
+                {saving ? "Saving…" : "Send Reply"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => updateTicket(selected.id, { status: "resolved" })} disabled={saving}>
+                Mark Resolved
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => updateTicket(selected.id, { status: "closed" })} disabled={saving}>
+                Close
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => updateTicket(selected.id, { status: "open" })} disabled={saving}>
+                Reopen
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => deleteTicket(selected.id)} disabled={!!deleting}>
+                Delete
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Ticket list */}
+      {!loading && tickets.length > 0 && (
+        <div className="space-y-2">
+          {tickets.map(ticket => (
+            <div key={ticket.id}
+              onClick={() => { setSelected(ticket); setReply(ticket.adminReply ?? ""); }}
+              className={`bg-white border rounded-xl p-4 cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all ${selected?.id === ticket.id ? "border-primary/60 shadow-sm" : "border-border"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${STATUS_COLORS[ticket.status]}`}>
+                      {ticket.status}
+                    </span>
+                    <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
+                      {CATEGORY_LABELS[ticket.category] ?? ticket.category}
+                    </span>
+                    <span className="text-[11px] font-mono text-muted-foreground">{ticket.id}</span>
+                  </div>
+                  <p className="text-sm font-semibold truncate">{ticket.subject}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{ticket.name} · {ticket.email}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[11px] text-muted-foreground">{fmtDate(ticket.createdAt)}</p>
+                  {ticket.adminReply && (
+                    <p className="text-[11px] text-green-600 font-semibold mt-0.5">Replied</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "licenses",      label: "Licenses",      icon: <KeyRound className="w-4 h-4" /> },
   { id: "revenue",       label: "Revenue",        icon: <TrendingUp className="w-4 h-4" /> },
+  { id: "tickets",       label: "Tickets",        icon: <TicketCheck className="w-4 h-4" /> },
   { id: "payment",       label: "Payment",        icon: <CreditCard className="w-4 h-4" /> },
   { id: "notifications", label: "Notifications",  icon: <Bell className="w-4 h-4" /> },
   { id: "appearance",    label: "Appearance",     icon: <Palette className="w-4 h-4" /> },
@@ -1467,6 +1668,7 @@ export default function AdminPage() {
         {/* Tab content */}
         {tab === "licenses"      && <LicensesTab pw={pw} />}
         {tab === "revenue"       && <RevenueTab pw={pw} />}
+        {tab === "tickets"       && <TicketsTab pw={pw} />}
         {tab === "payment"       && settings && <PaymentTab pw={pw} settings={settings} onSaved={setSettings} />}
         {tab === "notifications" && settings && <NotificationsTab pw={pw} settings={settings} onSaved={setSettings} />}
         {tab === "appearance"    && settings && <AppearanceTab pw={pw} settings={settings} onSaved={setSettings} />}

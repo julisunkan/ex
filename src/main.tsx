@@ -3,6 +3,9 @@ import { Switch, Route } from "wouter";
 import { AppConfigProvider } from "./context/AppConfigContext";
 import App from "./App";
 import AdminPage from "./pages/admin";
+import EulaPage from "./pages/eula";
+import PrivacyPage from "./pages/privacy";
+import SupportPage from "./pages/support";
 import NotFound from "./pages/not-found";
 import "./index.css";
 
@@ -13,6 +16,9 @@ function Root() {
     <AppConfigProvider>
       <Switch>
         <Route path="/admin" component={AdminPage} />
+        <Route path="/eula" component={EulaPage} />
+        <Route path="/privacy" component={PrivacyPage} />
+        <Route path="/support" component={SupportPage} />
         <Route path="/" component={App} />
         <Route component={NotFound} />
       </Switch>

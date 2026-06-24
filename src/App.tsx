@@ -1273,8 +1273,15 @@ export default function App() {
       </div>
 
       {/* ── Footer ── */}
-      <footer className="px-4 py-2 border-t border-border bg-white text-xs text-muted-foreground text-center font-semibold shrink-0">
-        {appName} · Excel Add-in
+      <footer className="px-4 py-2.5 border-t border-border bg-white shrink-0">
+        <div className="flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
+          <a href="/eula" className="hover:text-foreground hover:underline transition-colors">EULA</a>
+          <span className="opacity-40">·</span>
+          <a href="/privacy" className="hover:text-foreground hover:underline transition-colors">Privacy Policy</a>
+          <span className="opacity-40">·</span>
+          <a href="/support" className="hover:text-foreground hover:underline transition-colors">Support</a>
+        </div>
+        <p className="text-center text-[10px] text-muted-foreground/50 mt-1">{appName} · Excel Add-in</p>
       </footer>
     </div>
   );
