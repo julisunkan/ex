@@ -109,6 +109,16 @@ export const CATEGORIES: Category[] = [
   },
 ];
 
+/**
+ * Look up a Category by its exact name (case-insensitive).
+ * Returns null if no match — caller should fall back to `categorize()`.
+ */
+export function categorizeByName(name: string): Category | null {
+  if (!name) return null;
+  const normalized = name.toLowerCase().trim();
+  return CATEGORIES.find((c) => c.name.toLowerCase() === normalized) ?? null;
+}
+
 export function categorize(description: string, amount: number, type: TransactionType): Category {
   const desc = description.toLowerCase();
 

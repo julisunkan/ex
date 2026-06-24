@@ -1,4 +1,4 @@
-import { categorize, buildSummary, type Transaction, type Summary } from "./categorizer";
+import { categorize, categorizeByName, buildSummary, type Transaction, type Summary } from "./categorizer";
 
 declare const Office: typeof import("@microsoft/office-js");
 
@@ -12,6 +12,8 @@ export type ColumnMap = {
   debit: number | null;
   credit: number | null;
   balance: number | null;
+  // Optional pre-assigned category column
+  category: number | null;
 };
 
 export function fmt(n: number, symbol = "₦"): string {
@@ -43,6 +45,9 @@ export async function detectColumns(sheet: Excel.Worksheet): Promise<ColumnMap |
 
   if (date === -1 || description === -1) return null;
 
+  // Category column (optional — present in split-format exports from banks)
+  const category = find("category", "cat");
+
   // ── Split-column format: separate Debit / Credit columns ──────────────────
   const debit  = find("debit");
   const credit = find("credit");
@@ -54,6 +59,7 @@ export async function detectColumns(sheet: Excel.Worksheet): Promise<ColumnMap |
       amount: null, type: null,
       debit, credit,
       balance: balance === -1 ? null : balance,
+      category: category === -1 ? null : category,
     };
   }
 
@@ -67,6 +73,7 @@ export async function detectColumns(sheet: Excel.Worksheet): Promise<ColumnMap |
     date, description,
     amount, type: type === -1 ? null : type,
     debit: null, credit: null, balance: null,
+    category: category === -1 ? null : category,
   };
 }
 
@@ -131,7 +138,10 @@ export async function readTransactions(
       }
     }
 
-    const category = categorize(description, amount, type);
+    // Use pre-assigned category from the sheet if present, else auto-detect
+    const rawCat = columnMap.category !== null ? String(row[columnMap.category] ?? "").trim() : "";
+    const category = (rawCat ? categorizeByName(rawCat) : null) ?? categorize(description, amount, type);
+
     transactions.push({ row: i + 1, date, description, amount, type, category });
   }
 
