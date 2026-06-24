@@ -1057,14 +1057,19 @@ export default function App() {
                   {topCategories.map(([name, info]) => (
                     <div key={name} className="bg-white border border-border rounded-xl p-4 shadow-sm">
                       <div className="flex items-center justify-between mb-2.5">
-                        <span className={`text-xs px-2 py-0.5 rounded-md ${info.className}`}>{name}</span>
-                        <span className="text-base font-extrabold">{fmt(info.total)}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`text-xs px-2 py-0.5 rounded-md shrink-0 ${info.className}`}>{name}</span>
+                          <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                            {info.count} tx
+                          </span>
+                        </div>
+                        <span className="text-base font-extrabold shrink-0">{fmt(info.total)}</span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
                         <div className="h-2 rounded-full" style={{ width: `${(info.total / maxCatTotal) * 100}%`, backgroundColor: info.color }} />
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground font-semibold">{info.count} transaction{info.count !== 1 ? "s" : ""}</p>
+                        <p className="text-xs text-muted-foreground font-semibold">avg {fmt(Math.round(info.total / info.count))} / tx</p>
                         {summary.totalExpenses > 0 && (
                           <p className="text-xs text-muted-foreground font-semibold">{Math.round((info.total / summary.totalExpenses) * 100)}% of expenses</p>
                         )}
