@@ -12,6 +12,7 @@ import {
 } from "./lib/excel";
 import { buildSummary, type Summary, type Transaction } from "./lib/categorizer";
 import { parsePastedText, writeToExcelSheet } from "./lib/csv-parser";
+import { exportToPdf } from "./lib/pdf";
 import { getLicense, checkLicenseValid } from "./lib/payment";
 import PaymentGate from "./components/PaymentGate";
 import SubscriptionDashboard from "./components/SubscriptionDashboard";
@@ -127,7 +128,7 @@ export default function App() {
   const [isPro, setIsPro] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [paymentMode, setPaymentMode] = useState<"pay" | "key">("pay");
-  const [pendingAction, setPendingAction] = useState<"highlight" | "export" | "csv" | "budget" | "recurring" | null>(null);
+  const [pendingAction, setPendingAction] = useState<"highlight" | "export" | "csv" | "pdf" | "budget" | "recurring" | null>(null);
   const [txSearch, setTxSearch] = useState("");
   const [txCategoryFilter, setTxCategoryFilter] = useState("All");
   const [txTypeFilter, setTxTypeFilter] = useState<"all" | "credit" | "debit">("all");
@@ -158,6 +159,7 @@ export default function App() {
     if (action === "highlight") doHighlight();
     if (action === "export") doExport();
     if (action === "csv") doExportCsv();
+    if (action === "pdf") doExportPdf();
     if (action === "budget") setActiveTab("budget");
     if (action === "recurring") setShowRecurring(true);
   }, [pendingAction]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -236,9 +238,15 @@ export default function App() {
     exportToCsv(summary);
   }, [summary]);
 
+  const doExportPdf = useCallback(() => {
+    if (!summary) return;
+    exportToPdf(summary, appName);
+  }, [summary, appName]);
+
   const handleHighlight = useCallback(() => { if (requirePro("highlight")) doHighlight(); }, [requirePro, doHighlight]);
   const handleExport = useCallback(() => { if (requirePro("export")) doExport(); }, [requirePro, doExport]);
   const handleExportCsv = useCallback(() => { if (requirePro("csv")) doExportCsv(); }, [requirePro, doExportCsv]);
+  const handleExportPdf = useCallback(() => { if (requirePro("pdf")) doExportPdf(); }, [requirePro, doExportPdf]);
   const handleBudgetTab = useCallback(() => { if (requirePro("budget")) setActiveTab("budget"); }, [requirePro]);
   const handleToggleRecurring = useCallback(() => { if (requirePro("recurring")) setShowRecurring((v) => !v); }, [requirePro]);
 
@@ -383,6 +391,7 @@ export default function App() {
                     { label: "Highlight cells by category", free: false },
                     { label: "Export Excel summary sheet", free: false },
                     { label: "Download CSV with categories", free: false },
+                    { label: "Export color-coded PDF report", free: false },
                     { label: "Recurring subscriptions detector", free: false },
                     { label: "Duplicate transaction flags", free: false },
                     { label: "Category budget tracker", free: false },
@@ -528,6 +537,16 @@ export default function App() {
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 CSV
+                {!isPro && <span className="text-[10px] opacity-60">🔒</span>}
+              </ActionBtn>
+              <ActionBtn variant="secondary" onClick={handleExportPdf} size="sm">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="9" y1="15" x2="15" y2="15"/>
+                  <line x1="9" y1="11" x2="15" y2="11"/>
+                </svg>
+                PDF
                 {!isPro && <span className="text-[10px] opacity-60">🔒</span>}
               </ActionBtn>
             </div>
