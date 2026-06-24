@@ -30,26 +30,44 @@ async function sendWebhook(url, payload) {
   }
 }
 
+function createTransporter(cfg) {
+  return nodemailer.createTransport({
+    host: cfg.smtpHost,
+    port: cfg.smtpPort || 587,
+    secure: (cfg.smtpPort || 587) === 465,
+    auth: cfg.smtpUser ? { user: cfg.smtpUser, pass: cfg.smtpPass } : undefined,
+  });
+}
+
 async function sendEmail(cfg, subject, text, overrideTo) {
   const recipient = overrideTo || cfg?.to;
   if (!cfg?.smtpHost || !recipient) return;
   try {
-    const transporter = nodemailer.createTransport({
-      host: cfg.smtpHost,
-      port: cfg.smtpPort || 587,
-      secure: (cfg.smtpPort || 587) === 465,
-      auth: cfg.smtpUser ? { user: cfg.smtpUser, pass: cfg.smtpPass } : undefined,
-    });
+    const transporter = createTransporter(cfg);
     await transporter.sendMail({
       from: cfg.from || cfg.smtpUser || "noreply@bankstatementanalyzer.app",
       to: recipient,
       subject,
       text,
     });
-    console.log("[notify] Email sent to", cfg.to);
+    console.log("[notify] Email sent to", recipient);
   } catch (err) {
     console.warn("[notify] Email failed:", err.message);
   }
+}
+
+export async function sendReportEmail(cfg, to, html, appName) {
+  if (!cfg?.smtpHost || !to) throw new Error("SMTP not configured or recipient missing.");
+  const transporter = createTransporter(cfg);
+  const from = cfg.from || cfg.smtpUser || "noreply@bankstatementanalyzer.app";
+  const subject = `${appName} — Your Bank Statement Report`;
+  await transporter.sendMail({
+    from,
+    to,
+    subject,
+    html,
+    text: `Your bank statement analysis report from ${appName} is attached as HTML. Please open this email in a browser or HTML-capable client to view the full report.`,
+  });
 }
 
 export async function notifyExpiryReminder({ licenseKey, planLabel, expiresAt, daysLeft, userEmail, smtpCfg }) {

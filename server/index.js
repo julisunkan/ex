@@ -3,18 +3,20 @@ import cors from "cors";
 import paymentsRouter from "./routes/payments.js";
 import adminRouter from "./routes/admin.js";
 import settingsRouter from "./routes/settings.js";
+import emailReportRouter from "./routes/email-report.js";
 import { startExpiryChecker } from "./lib/expiry-checker.js";
 
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 const app = express();
 
 app.use(cors({ origin: true }));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 app.use("/api/payments", paymentsRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/admin", settingsRouter);
 app.use("/api/config", settingsRouter);
+app.use("/api/send-report", emailReportRouter);
 
 app.get("/", (_req, res) => res.send("Bank Statement Analyzer API is running. Use /api/health to check status."));
 app.get("/api/health", (_req, res) => res.json({ ok: true }));

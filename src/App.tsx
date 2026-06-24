@@ -12,7 +12,7 @@ import {
 } from "./lib/excel";
 import { buildSummary, type Summary, type Transaction } from "./lib/categorizer";
 import { parsePastedText, writeToExcelSheet } from "./lib/csv-parser";
-import { exportToPdf } from "./lib/pdf";
+import { exportToPdf, buildReportHtml } from "./lib/pdf";
 import { getLicense, checkLicenseValid } from "./lib/payment";
 import PaymentGate from "./components/PaymentGate";
 import SubscriptionDashboard from "./components/SubscriptionDashboard";
@@ -135,6 +135,11 @@ export default function App() {
   const [budgets, setBudgets] = useState<Record<string, string>>({});
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showRecurring, setShowRecurring] = useState(false);
+  const [showPdfDialog, setShowPdfDialog] = useState(false);
+  const [pdfEmail, setPdfEmail] = useState("");
+  const [pdfEmailSending, setPdfEmailSending] = useState(false);
+  const [pdfEmailSent, setPdfEmailSent] = useState(false);
+  const [pdfEmailError, setPdfEmailError] = useState("");
 
   const lowestPlanPrice = config.plans.length > 0 ? Math.min(...config.plans.map((p) => p.price)) : 5;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -159,7 +164,7 @@ export default function App() {
     if (action === "highlight") doHighlight();
     if (action === "export") doExport();
     if (action === "csv") doExportCsv();
-    if (action === "pdf") doExportPdf();
+    if (action === "pdf") setShowPdfDialog(true);
     if (action === "budget") setActiveTab("budget");
     if (action === "recurring") setShowRecurring(true);
   }, [pendingAction]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -243,10 +248,37 @@ export default function App() {
     exportToPdf(summary, appName);
   }, [summary, appName]);
 
+  const doSendReportByEmail = useCallback(async (email: string) => {
+    if (!summary) return;
+    setPdfEmailSending(true);
+    setPdfEmailError("");
+    try {
+      const html = buildReportHtml(summary, appName);
+      const apiBase = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+      const res = await fetch(`${apiBase}/api/send-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, html, appName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Server error (${res.status})`);
+      setPdfEmailSent(true);
+    } catch (e: unknown) {
+      setPdfEmailError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPdfEmailSending(false);
+    }
+  }, [summary, appName]);
+
   const handleHighlight = useCallback(() => { if (requirePro("highlight")) doHighlight(); }, [requirePro, doHighlight]);
   const handleExport = useCallback(() => { if (requirePro("export")) doExport(); }, [requirePro, doExport]);
   const handleExportCsv = useCallback(() => { if (requirePro("csv")) doExportCsv(); }, [requirePro, doExportCsv]);
-  const handleExportPdf = useCallback(() => { if (requirePro("pdf")) doExportPdf(); }, [requirePro, doExportPdf]);
+  const handleExportPdf = useCallback(() => {
+    if (requirePro("pdf")) {
+      setPdfEmailSent(false); setPdfEmailError(""); setPdfEmail("");
+      setShowPdfDialog(true);
+    }
+  }, [requirePro]);
   const handleBudgetTab = useCallback(() => { if (requirePro("budget")) setActiveTab("budget"); }, [requirePro]);
   const handleToggleRecurring = useCallback(() => { if (requirePro("recurring")) setShowRecurring((v) => !v); }, [requirePro]);
 
@@ -286,6 +318,109 @@ export default function App() {
           onUnlocked={onPaymentUnlocked}
           onDismiss={() => { setShowPayment(false); setPendingAction(null); setPaymentMode("pay"); }}
         />
+      )}
+
+      {/* PDF / Email dialog */}
+      {showPdfDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[340px] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    <line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="15" y2="11"/>
+                  </svg>
+                </div>
+                <p className="text-sm font-bold text-foreground">Export Report</p>
+              </div>
+              <button
+                onClick={() => setShowPdfDialog(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="button-close-pdf-dialog"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              {/* Open PDF button */}
+              <button
+                onClick={() => { doExportPdf(); setShowPdfDialog(false); }}
+                className="w-full flex items-center gap-3.5 bg-primary text-white rounded-xl px-4 py-3.5 hover:bg-primary/90 transition-colors text-left group"
+                data-testid="button-open-pdf"
+              >
+                <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Open PDF</p>
+                  <p className="text-xs opacity-80 mt-0.5">Opens print dialog to save as PDF</p>
+                </div>
+              </button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted-foreground font-medium">or</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              {/* Email section */}
+              {pdfEmailSent ? (
+                <div className="flex flex-col items-center gap-2 py-4 text-center">
+                  <div className="w-11 h-11 rounded-full bg-green-100 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm font-bold text-green-700">Report sent!</p>
+                  <p className="text-xs text-muted-foreground">Check <span className="font-semibold">{pdfEmail}</span> for your report</p>
+                  <button
+                    onClick={() => { setPdfEmailSent(false); setPdfEmail(""); }}
+                    className="text-xs text-primary hover:underline mt-1"
+                  >Send to another email</button>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <p className="text-xs font-semibold text-foreground">Send report to email</p>
+                  <input
+                    type="email"
+                    value={pdfEmail}
+                    onChange={(e) => { setPdfEmail(e.target.value); setPdfEmailError(""); }}
+                    placeholder="you@example.com"
+                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground/50"
+                    onKeyDown={(e) => { if (e.key === "Enter" && pdfEmail.includes("@")) doSendReportByEmail(pdfEmail); }}
+                    data-testid="input-pdf-email"
+                    disabled={pdfEmailSending}
+                  />
+                  {pdfEmailError && (
+                    <p className="text-xs text-destructive font-medium">{pdfEmailError}</p>
+                  )}
+                  <button
+                    onClick={() => doSendReportByEmail(pdfEmail)}
+                    disabled={pdfEmailSending || !pdfEmail.includes("@")}
+                    className="w-full flex items-center justify-center gap-2 bg-accent text-white rounded-xl px-4 py-2.5 text-sm font-bold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    data-testid="button-send-report-email"
+                  >
+                    {pdfEmailSending ? (
+                      <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Sending…</>
+                    ) : (
+                      <><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                      </svg>Send Report</>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Header ── */}
