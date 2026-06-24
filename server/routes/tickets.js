@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { randomBytes } from "crypto";
+import { notifyNewTicket } from "../lib/notify.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TICKETS_FILE = join(__dirname, "../data/tickets.json");
@@ -56,6 +57,10 @@ router.post("/", (req, res) => {
   saveTickets(tickets);
 
   console.log(`🎫 New ticket: ${ticket.id} from ${ticket.email} — "${ticket.subject}"`);
+
+  // Fire notification (webhook + email) without blocking the response
+  notifyNewTicket(ticket).catch(err => console.warn("[tickets] Notify failed:", err.message));
+
   res.status(201).json({ ok: true, ticketId: ticket.id });
 });
 

@@ -87,6 +87,49 @@ export async function notifyExpiryReminder({ licenseKey, planLabel, expiresAt, d
   await sendEmail(smtpCfg, subject, text, userEmail);
 }
 
+export async function notifyNewTicket({ id, name, email, licenseKey, category, subject, message }) {
+  const cfg = getNotifyConfig();
+  if (!cfg.webhookUrl && !cfg.email?.enabled) return;
+
+  const categoryLabel =
+    { general: "General", billing: "Billing", license: "License", bug: "Bug", feature: "Feature", other: "Other" }[category] ?? category;
+
+  const lines = [
+    `New support ticket received`,
+    `Ticket ID: ${id}`,
+    `From: ${name} <${email}>`,
+    ...(licenseKey ? [`License: ${licenseKey}`] : []),
+    `Category: ${categoryLabel}`,
+    `Subject: ${subject}`,
+    ``,
+    message,
+    ``,
+    `Time: ${new Date().toLocaleString()}`,
+  ];
+  const text = lines.join("\n");
+
+  const webhookPayload = {
+    text,
+    embeds: [{
+      title: `🎫 New Support Ticket: ${subject}`,
+      color: 0xf59e0b,
+      fields: [
+        { name: "Ticket ID", value: id,           inline: true },
+        { name: "Category",  value: categoryLabel, inline: true },
+        { name: "From",      value: `${name}\n${email}`, inline: false },
+        ...(licenseKey ? [{ name: "License", value: `\`${licenseKey}\``, inline: false }] : []),
+        { name: "Message",   value: message.length > 300 ? message.slice(0, 300) + "…" : message, inline: false },
+      ],
+      timestamp: new Date().toISOString(),
+    }],
+  };
+
+  await Promise.allSettled([
+    sendWebhook(cfg.webhookUrl, webhookPayload),
+    sendEmail(cfg.email, `[Support Ticket ${id}] ${subject}`, text),
+  ]);
+}
+
 export async function notifyNewLicense({ licenseKey, planLabel, planId, expiresAt, txHash, network }) {
   const cfg = getNotifyConfig();
   if (!cfg.webhookUrl && !cfg.email?.enabled) return;
