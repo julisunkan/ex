@@ -71,3 +71,14 @@ export async function checkLicenseValid(licenseKey: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function activateLicenseKey(key: string): Promise<{ success: boolean; error?: string }> {
+  const trimmed = key.trim().toUpperCase();
+  if (!trimmed) return { success: false, error: "Please enter a license key." };
+  const valid = await checkLicenseValid(trimmed);
+  if (valid) {
+    setLicense(trimmed);
+    return { success: true };
+  }
+  return { success: false, error: "Invalid or expired license key. Check the key and try again." };
+}

@@ -81,6 +81,7 @@ export default function App() {
   const [csvError, setCsvError] = useState("");
   const [isPro, setIsPro] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<"pay" | "key">("pay");
   const [pendingAction, setPendingAction] = useState<"highlight" | "export" | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -192,8 +193,9 @@ export default function App() {
       {/* Payment overlay */}
       {showPayment && (
         <PaymentGate
+          initialMode={paymentMode}
           onUnlocked={onPaymentUnlocked}
-          onDismiss={() => { setShowPayment(false); setPendingAction(null); }}
+          onDismiss={() => { setShowPayment(false); setPendingAction(null); setPaymentMode("pay"); }}
         />
       )}
 
@@ -281,7 +283,7 @@ export default function App() {
               <div className="w-full max-w-[300px] rounded-xl border-2 border-amber-200 overflow-hidden shadow-sm">
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2.5 flex items-center justify-between border-b border-amber-200">
                   <p className="text-sm font-bold text-amber-800">Free vs Pro</p>
-                  <button onClick={() => setShowPayment(true)}
+                  <button onClick={() => { setPaymentMode("pay"); setShowPayment(true); }}
                     className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1 rounded-lg transition-colors shadow-sm">
                     Unlock $5 USDT
                   </button>
@@ -305,6 +307,16 @@ export default function App() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* License key entry link */}
+            {!isPro && (
+              <button
+                onClick={() => { setPaymentMode("key"); setShowPayment(true); }}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
+              >
+                Already have a license key? Enter it here
+              </button>
             )}
           </div>
         )}

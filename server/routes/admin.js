@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
+import { randomBytes } from "crypto";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
@@ -28,6 +29,14 @@ function loadLicenses() {
   }
 }
 
+function saveLicenses(licenses) {
+  writeFileSync(LICENSES_FILE, JSON.stringify(licenses, null, 2));
+}
+
+function generateLicenseKey() {
+  return "BSA-" + randomBytes(12).toString("hex").toUpperCase();
+}
+
 // GET /api/admin/licenses
 router.get("/licenses", requireAdmin, (req, res) => {
   const licenses = loadLicenses();
@@ -37,6 +46,35 @@ router.get("/licenses", requireAdmin, (req, res) => {
       (a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime()
     ),
   });
+});
+
+// POST /api/admin/licenses/generate  — manually issue a license key
+router.post("/licenses/generate", requireAdmin, (req, res) => {
+  const { note } = req.body || {};
+  const licenseKey = generateLicenseKey();
+  const licenses = loadLicenses();
+  licenses.push({
+    licenseKey,
+    txHash: "MANUAL",
+    note: (note || "Admin generated").slice(0, 100),
+    issuedAt: new Date().toISOString(),
+  });
+  saveLicenses(licenses);
+  console.log(`🔑 Manual license issued: ${licenseKey}${note ? ` (${note})` : ""}`);
+  res.json({ licenseKey });
+});
+
+// DELETE /api/admin/licenses/:key  — revoke a license key
+router.delete("/licenses/:key", requireAdmin, (req, res) => {
+  const { key } = req.params;
+  const licenses = loadLicenses();
+  const updated = licenses.filter((l) => l.licenseKey !== key);
+  if (updated.length === licenses.length) {
+    return res.status(404).json({ error: "License not found" });
+  }
+  saveLicenses(updated);
+  console.log(`🗑  License revoked: ${key}`);
+  res.json({ ok: true });
 });
 
 export default router;

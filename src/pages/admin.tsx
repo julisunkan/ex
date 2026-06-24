@@ -12,7 +12,7 @@ import {
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface License { licenseKey: string; txHash: string; issuedAt: string; }
+interface License { licenseKey: string; txHash: string; issuedAt: string; note?: string; }
 interface Settings {
   appearance: { name: string; tagline: string; primaryColor: string; accentColor: string; radius: string; };
   payment: { walletAddress: string; network: string; price: number; };
@@ -92,6 +92,11 @@ function LoginScreen({ onLogin }: { onLogin: (pw: string) => void }) {
 function LicensesTab({ pw }: { pw: string }) {
   const [data, setData] = useState<{ total: number; licenses: License[] } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genNote, setGenNote] = useState("");
+  const [newKey, setNewKey] = useState<string | null>(null);
+  const [newKeyCopied, setNewKeyCopied] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -102,16 +107,86 @@ function LicensesTab({ pw }: { pw: string }) {
 
   useEffect(() => { load(); }, []);
 
+  async function generateKey() {
+    setGenerating(true);
+    setNewKey(null);
+    const res = await fetch(`${API_BASE}/api/admin/licenses/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      body: JSON.stringify({ note: genNote || "Admin generated" }),
+    });
+    setGenerating(false);
+    if (res.ok) {
+      const { licenseKey } = await res.json();
+      setNewKey(licenseKey);
+      setGenNote("");
+      load();
+    }
+  }
+
+  function copyNewKey() {
+    if (!newKey) return;
+    navigator.clipboard.writeText(newKey);
+    setNewKeyCopied(true);
+    setTimeout(() => setNewKeyCopied(false), 2000);
+  }
+
+  async function revokeKey(key: string) {
+    if (!confirm(`Revoke license key ${key}? This cannot be undone.`)) return;
+    setRevoking(key);
+    await fetch(`${API_BASE}/api/admin/licenses/${encodeURIComponent(key)}`, {
+      method: "DELETE", headers: { "x-admin-password": pw },
+    });
+    setRevoking(null);
+    load();
+  }
+
   return (
     <div className="space-y-4">
+      {/* Generate key card */}
+      <Card className="border-blue-100 bg-blue-50/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-blue-600" /> Generate License Key
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">Create a key manually — useful for testing or granting access without payment.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              value={genNote}
+              onChange={e => setGenNote(e.target.value)}
+              placeholder="Note (optional, e.g. 'Test key')"
+              className="flex-1"
+              onKeyDown={e => e.key === "Enter" && generateKey()}
+            />
+            <Button onClick={generateKey} disabled={generating} className="gap-2 shrink-0">
+              {generating
+                ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating…</>
+                : <><KeyRound className="w-4 h-4" /> Generate</>}
+            </Button>
+          </div>
+
+          {newKey && (
+            <div className="flex items-center gap-2 bg-white border border-blue-200 rounded-lg px-3 py-2.5">
+              <code className="flex-1 text-sm font-mono font-bold text-foreground tracking-wider select-all">{newKey}</code>
+              <button onClick={copyNewKey}
+                className="shrink-0 flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                {newKeyCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* List */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary">{data?.total ?? 0} licenses issued</Badge>
-        </div>
+        <Badge variant="secondary">{data?.total ?? 0} licenses issued</Badge>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh
         </Button>
       </div>
+
       <Card>
         <CardContent className="p-0">
           {!data || data.licenses.length === 0 ? (
@@ -123,8 +198,9 @@ function LicensesTab({ pw }: { pw: string }) {
                   <tr className="border-b bg-gray-50/60">
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground w-8">#</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">License Key</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Transaction Hash</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Source / Note</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Issued At</th>
+                    <th className="px-4 py-3 w-8" />
                   </tr>
                 </thead>
                 <tbody>
@@ -138,12 +214,29 @@ function LicensesTab({ pw }: { pw: string }) {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 max-w-xs">
-                          <span className="font-mono text-xs text-muted-foreground truncate">{l.txHash}</span>
-                          <CopyBtn text={l.txHash} />
-                        </div>
+                        {l.txHash === "MANUAL" ? (
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-blue-100 text-blue-700 border-0">Manual</Badge>
+                            {l.note && <span className="text-xs text-muted-foreground truncate max-w-[120px]">{l.note}</span>}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 max-w-xs">
+                            <span className="font-mono text-xs text-muted-foreground truncate">{l.txHash}</span>
+                            <CopyBtn text={l.txHash} />
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(l.issuedAt)}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => revokeKey(l.licenseKey)}
+                          disabled={revoking === l.licenseKey}
+                          className="text-xs text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                          title="Revoke key"
+                        >
+                          {revoking === l.licenseKey ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "✕"}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
