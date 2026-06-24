@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { getLicense } from "@/lib/payment";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -14,7 +13,6 @@ const CATEGORIES = [
 ];
 
 export default function SupportPage() {
-  const [, setLocation] = useLocation();
   const savedLicense = getLicense() ?? "";
 
   const [form, setForm] = useState({
@@ -57,15 +55,15 @@ export default function SupportPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-border shadow-sm shrink-0">
-        <button
-          onClick={() => setLocation("/")}
+        <a
+          href="/"
           className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <polyline points="15 18 9 12 15 6" />
           </svg>
           Back
-        </button>
+        </a>
         <h1 className="text-sm font-bold text-foreground">Support</h1>
       </header>
 
