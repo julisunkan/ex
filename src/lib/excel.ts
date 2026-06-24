@@ -277,9 +277,9 @@ export async function createSummarySheet(summary: Summary, context: Excel.Reques
   await context.sync();
 }
 
-export function exportToCsv(summary: Summary, notes: Record<number, string> = {}): void {
+export function exportToCsv(summary: Summary, notes: Record<number, string> = {}, flaggedRows: Set<number> = new Set()): void {
   const rows: string[][] = [
-    ["Date", "Description", "Amount", "Type", "Category", "Duplicate?", "Notes"],
+    ["Date", "Description", "Amount", "Type", "Category", "Flagged?", "Duplicate?", "Notes"],
   ];
   for (const tx of summary.transactions) {
     const note = notes[tx.row] ?? "";
@@ -289,6 +289,7 @@ export function exportToCsv(summary: Summary, notes: Record<number, string> = {}
       String(tx.amount),
       tx.type.toUpperCase(),
       tx.category.name,
+      flaggedRows.has(tx.row) ? "Flagged" : "",
       summary.duplicateRows.has(tx.row) ? "Possible Duplicate" : "",
       `"${note.replace(/"/g, '""')}"`,
     ]);

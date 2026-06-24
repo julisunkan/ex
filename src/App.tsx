@@ -150,6 +150,8 @@ export default function App() {
   const [categoryOverrides, setCategoryOverrides] = useState<Record<number, Category>>({});
   const [expandedTxRow, setExpandedTxRow] = useState<number | null>(null);
   const [txNotes, setTxNotes] = useState<Record<number, string>>({});
+  const [flaggedRows, setFlaggedRows] = useState<Set<number>>(new Set());
+  const [showFlagged, setShowFlagged] = useState(false);
 
   const lowestPlanPrice = config.plans.length > 0 ? Math.min(...config.plans.map((p) => p.price)) : 5;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -298,20 +300,20 @@ export default function App() {
 
   const doExportCsv = useCallback(() => {
     if (!summary) return;
-    exportToCsv(summary, txNotes);
-  }, [summary, txNotes]);
+    exportToCsv(summary, txNotes, flaggedRows);
+  }, [summary, txNotes, flaggedRows]);
 
   const doExportPdf = useCallback(() => {
     if (!summary) return;
-    exportToPdf(summary, appName, symbol, txNotes);
-  }, [summary, appName, symbol, txNotes]);
+    exportToPdf(summary, appName, symbol, txNotes, flaggedRows);
+  }, [summary, appName, symbol, txNotes, flaggedRows]);
 
   const doSendReportByEmail = useCallback(async (email: string) => {
     if (!summary) return;
     setPdfEmailSending(true);
     setPdfEmailError("");
     try {
-      const html = buildReportHtml(summary, appName, symbol, txNotes);
+      const html = buildReportHtml(summary, appName, symbol, txNotes, flaggedRows);
       const apiBase = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
       const res = await fetch(`${apiBase}/api/send-report`, {
         method: "POST",
@@ -360,6 +362,7 @@ export default function App() {
     setActionError(""); setShowPdfDialog(false); setHighlightDone(false);
     setClearing(false); setClearDone(false);
     setCategoryOverrides({}); setExpandedTxRow(null); setTxNotes({});
+    setFlaggedRows(new Set()); setShowFlagged(false);
   };
 
   const openSubscription = () => setStep("subscription");
@@ -375,7 +378,8 @@ export default function App() {
         const matchCat = txCategoryFilter === "All" || tx.category.name === txCategoryFilter;
         const matchType = txTypeFilter === "all" || tx.type === txTypeFilter;
         const matchDupe = !showDuplicates || summary.duplicateRows.has(tx.row);
-        return matchSearch && matchCat && matchType && matchDupe;
+        const matchFlag = !showFlagged || flaggedRows.has(tx.row);
+        return matchSearch && matchCat && matchType && matchDupe && matchFlag;
       })
     : [];
 
@@ -1171,6 +1175,19 @@ export default function App() {
                         <option value="debit">Expenses only</option>
                       </select>
                     </div>
+                    {/* Flagged filter */}
+                    {flaggedRows.size > 0 && (
+                      <div className="flex items-center justify-between bg-white border border-border rounded-xl px-3 py-2">
+                        <span className="text-xs font-semibold text-foreground">🚩 Show flagged only ({flaggedRows.size})</span>
+                        <button
+                          data-testid="toggle-flagged-filter"
+                          onClick={() => setShowFlagged((v) => !v)}
+                          className={`relative w-8 h-4 rounded-full transition-colors ${showFlagged ? "bg-red-400" : "bg-muted-foreground/30"}`}
+                        >
+                          <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${showFlagged ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </button>
+                      </div>
+                    )}
                     {/* Duplicate filter */}
                     {summary.duplicateRows.size > 0 && (
                       <div className="flex items-center justify-between bg-white border border-border rounded-xl px-3 py-2">
@@ -1205,8 +1222,14 @@ export default function App() {
                       const isDupe = summary.duplicateRows.has(tx.row);
                       const isExpanded = expandedTxRow === tx.row;
                       const wasOverridden = !!categoryOverrides[tx.row];
+                      const isFlagged = flaggedRows.has(tx.row);
+                      const toggleFlag = () => setFlaggedRows((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(tx.row)) next.delete(tx.row); else next.add(tx.row);
+                        return next;
+                      });
                       return (
-                        <div key={i} className={`bg-white border rounded-xl shadow-sm overflow-hidden ${isDupe && isPro ? "border-amber-300 bg-amber-50/40" : isExpanded ? "border-primary" : "border-border"}`}>
+                        <div key={i} className={`bg-white border rounded-xl shadow-sm overflow-hidden ${isFlagged ? "border-red-300 bg-red-50/30" : isDupe && isPro ? "border-amber-300 bg-amber-50/40" : isExpanded ? "border-primary" : "border-border"}`}>
                           {/* Main row */}
                           <div className="flex items-start gap-3 p-3">
                             <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${tx.type === "credit" ? "bg-green-500" : "bg-red-500"}`} />
@@ -1222,14 +1245,27 @@ export default function App() {
                                 >
                                   {tx.category.name} {isExpanded ? "▲" : "▼"}
                                 </button>
+                                {isFlagged && (
+                                  <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded border border-red-200">🚩 Flagged</span>
+                                )}
                                 {isDupe && isPro && (
                                   <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">⚠ Possible Duplicate</span>
                                 )}
                               </div>
                             </div>
-                            <span className={`text-sm font-extrabold shrink-0 ${tx.type === "credit" ? "text-green-600" : "text-red-500"}`}>
-                              {tx.type === "credit" ? "+" : "−"}{fmt(tx.amount)}
-                            </span>
+                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                              <span className={`text-sm font-extrabold ${tx.type === "credit" ? "text-green-600" : "text-red-500"}`}>
+                                {tx.type === "credit" ? "+" : "−"}{fmt(tx.amount)}
+                              </span>
+                              <button
+                                data-testid={`btn-flag-${tx.row}`}
+                                onClick={toggleFlag}
+                                title={isFlagged ? "Remove flag" : "Flag for review"}
+                                className={`text-base leading-none transition-all hover:scale-110 active:scale-95 ${isFlagged ? "opacity-100" : "opacity-25 hover:opacity-60"}`}
+                              >
+                                🚩
+                              </button>
+                            </div>
                           </div>
                           {/* Category picker */}
                           {isExpanded && (
