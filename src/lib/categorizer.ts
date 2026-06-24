@@ -152,6 +152,18 @@ export interface RecurringGroup {
   transactions: Transaction[];
 }
 
+export interface MomChange {
+  category: string;
+  color: string;
+  className: string;
+  current: number;
+  previous: number;
+  delta: number;
+  pctChange: number;
+  isNew: boolean;
+  isGone: boolean;
+}
+
 export interface Summary {
   totalIncome: number;
   totalExpenses: number;
@@ -160,6 +172,9 @@ export interface Summary {
   byCategory: Record<string, { total: number; count: number; color: string; className: string }>;
   transactions: Transaction[];
   monthly: MonthlyPoint[];
+  monthlyByCategory: Record<string, Record<string, number>>; // month -> category -> total
+  momChanges: MomChange[];  // category-level changes between the two most recent months
+  momMonths: [string, string] | null;  // [current month label, previous month label]
   recurring: RecurringGroup[];
   duplicateRows: Set<number>;
   topMerchants: { name: string; total: number; count: number; category: Category }[];
@@ -312,11 +327,54 @@ function computeHealthScore(totalIncome: number, totalExpenses: number, savingsR
   return { score: Math.max(0, Math.min(100, score)), tips: tips.slice(0, 3) };
 }
 
+function computeMomChanges(
+  monthlyByCategory: Record<string, Record<string, number>>,
+  monthOrder: string[],
+  byCategory: Summary["byCategory"]
+): { changes: MomChange[]; months: [string, string] | null } {
+  if (monthOrder.length < 2) return { changes: [], months: null };
+
+  const curLabel = monthOrder[monthOrder.length - 1];
+  const prevLabel = monthOrder[monthOrder.length - 2];
+  const curCats = monthlyByCategory[curLabel] ?? {};
+  const prevCats = monthlyByCategory[prevLabel] ?? {};
+
+  const allCats = new Set([...Object.keys(curCats), ...Object.keys(prevCats)]);
+  const changes: MomChange[] = [];
+
+  for (const cat of allCats) {
+    if (cat === "Salary" || cat === "Other") continue; // skip income & uncategorized
+    const cur = curCats[cat] ?? 0;
+    const prev = prevCats[cat] ?? 0;
+    const delta = cur - prev;
+    const pctChange = prev > 0 ? Math.round((delta / prev) * 100) : 100;
+    const info = byCategory[cat];
+    changes.push({
+      category: cat,
+      color: info?.color ?? "#64748b",
+      className: info?.className ?? "cat-other",
+      current: cur,
+      previous: prev,
+      delta,
+      pctChange,
+      isNew: prev === 0 && cur > 0,
+      isGone: cur === 0 && prev > 0,
+    });
+  }
+
+  // Sort: biggest increases first, then decreases, then new/gone
+  changes.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+  return { changes, months: [curLabel, prevLabel] };
+}
+
 export function buildSummary(transactions: Transaction[]): Summary {
   let totalIncome = 0;
   let totalExpenses = 0;
   const byCategory: Summary["byCategory"] = {};
   const monthlyMap: Record<string, MonthlyPoint> = {};
+  const monthlyByCategory: Record<string, Record<string, number>> = {};
+  const monthOrder: string[] = [];
 
   for (const tx of transactions) {
     if (tx.type === "credit") {
@@ -333,9 +391,19 @@ export function buildSummary(transactions: Transaction[]): Summary {
     byCategory[key].count++;
 
     const monthKey = parseMonthKey(tx.date);
-    if (!monthlyMap[monthKey]) monthlyMap[monthKey] = { month: monthKey, income: 0, expenses: 0, net: 0 };
+    if (!monthlyMap[monthKey]) {
+      monthlyMap[monthKey] = { month: monthKey, income: 0, expenses: 0, net: 0 };
+      monthOrder.push(monthKey);
+    }
     if (tx.type === "credit") monthlyMap[monthKey].income += tx.amount;
     else monthlyMap[monthKey].expenses += tx.amount;
+
+    // Track per-category per-month (expenses only)
+    if (tx.type === "debit") {
+      if (!monthlyByCategory[monthKey]) monthlyByCategory[monthKey] = {};
+      if (!monthlyByCategory[monthKey][key]) monthlyByCategory[monthKey][key] = 0;
+      monthlyByCategory[monthKey][key] += tx.amount;
+    }
   }
 
   for (const pt of Object.values(monthlyMap)) pt.net = pt.income - pt.expenses;
@@ -343,10 +411,15 @@ export function buildSummary(transactions: Transaction[]): Summary {
   const net = totalIncome - totalExpenses;
   const savingsRate = totalIncome > 0 ? Math.round((net / totalIncome) * 100) : 0;
   const monthly = Object.values(monthlyMap);
+  const { changes: momChanges, months: momMonths } = computeMomChanges(monthlyByCategory, monthOrder, byCategory);
   const recurring = detectRecurring(transactions);
   const duplicateRows = detectDuplicates(transactions);
   const topMerchants = computeTopMerchants(transactions);
   const { score: healthScore, tips: healthTips } = computeHealthScore(totalIncome, totalExpenses, savingsRate, byCategory);
 
-  return { totalIncome, totalExpenses, net, savingsRate, byCategory, transactions, monthly, recurring, duplicateRows, topMerchants, healthScore, healthTips };
+  return {
+    totalIncome, totalExpenses, net, savingsRate, byCategory, transactions,
+    monthly, monthlyByCategory, momChanges, momMonths,
+    recurring, duplicateRows, topMerchants, healthScore, healthTips,
+  };
 }

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
   detectColumns,
   readTransactions,
@@ -609,6 +609,89 @@ export default function App() {
                         <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500" /><span className="text-[11px] text-muted-foreground font-medium">Income</span></div>
                         <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500" /><span className="text-[11px] text-muted-foreground font-medium">Expenses</span></div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Month-over-Month Comparison */}
+                  {summary.momMonths && summary.momChanges.length > 0 && (
+                    <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Month vs Month</p>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{summary.momMonths[1]}</span>
+                          <svg className="w-3 h-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                          <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{summary.momMonths[0]}</span>
+                        </div>
+                      </div>
+
+                      {/* Total expenses delta */}
+                      {(() => {
+                        const prevTotal = summary.momChanges.reduce((s, c) => s + c.previous, 0);
+                        const curTotal = summary.momChanges.reduce((s, c) => s + c.current, 0);
+                        const totalDelta = curTotal - prevTotal;
+                        const totalPct = prevTotal > 0 ? Math.round((totalDelta / prevTotal) * 100) : 0;
+                        const isUp = totalDelta > 0;
+                        return (
+                          <div className={`flex items-center justify-between rounded-xl px-3 py-2.5 mb-3 ${isUp ? "bg-red-50 border border-red-100" : "bg-green-50 border border-green-100"}`}>
+                            <span className="text-xs font-semibold text-foreground">Total Expenses</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs font-extrabold ${isUp ? "text-red-600" : "text-green-600"}`}>{fmt(curTotal)}</span>
+                              <span className={`flex items-center gap-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isUp ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
+                                {isUp ? "▲" : "▼"} {Math.abs(totalPct)}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      <div className="space-y-2.5">
+                        {summary.momChanges.slice(0, 6).map((c) => {
+                          const isUp = c.delta > 0;
+                          const isNew = c.isNew;
+                          const isGone = c.isGone;
+                          return (
+                            <div key={c.category} className="flex items-center gap-2">
+                              <span className={`text-xs px-1.5 py-0.5 rounded-md shrink-0 ${c.className}`}>{c.category}</span>
+                              <div className="flex-1 min-w-0">
+                                {isNew ? (
+                                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="h-1.5 rounded-full bg-amber-400" style={{ width: "100%" }} />
+                                  </div>
+                                ) : isGone ? (
+                                  <div className="h-1.5 bg-muted rounded-full" />
+                                ) : (
+                                  <div className="relative h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min((Math.min(c.previous, c.current) / Math.max(c.previous, c.current)) * 100, 100)}%`, backgroundColor: c.color + "66" }} />
+                                    <div className="absolute inset-y-0 rounded-full" style={{
+                                      left: isUp ? `${Math.min((c.previous / Math.max(c.previous, c.current)) * 100, 100)}%` : `${Math.min((c.current / Math.max(c.previous, c.current)) * 100, 100)}%`,
+                                      width: `${Math.abs(((c.delta) / Math.max(c.previous, c.current))) * 100}%`,
+                                      backgroundColor: isUp ? "#ef4444" : "#22c55e",
+                                    }} />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {isNew ? (
+                                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">NEW</span>
+                                ) : isGone ? (
+                                  <span className="text-[10px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">GONE</span>
+                                ) : (
+                                  <span className={`text-[11px] font-bold flex items-center gap-0.5 ${isUp ? "text-red-600" : "text-green-600"}`}>
+                                    {isUp ? "▲" : "▼"}{Math.abs(c.pctChange)}%
+                                  </span>
+                                )}
+                                <span className="text-[11px] font-semibold text-muted-foreground">{fmtShort(c.current)}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {summary.momChanges.length > 6 && (
+                        <p className="text-[11px] text-muted-foreground text-center mt-3">
+                          +{summary.momChanges.length - 6} more categories in the Categories tab
+                        </p>
+                      )}
                     </div>
                   )}
 
