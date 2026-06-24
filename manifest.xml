@@ -16,11 +16,11 @@
 
   <Description DefaultValue="Analyze bank statements and categorize transactions."/>
 
-  <IconUrl DefaultValue="https://bank-analyzer-ui.onrender.com/icon-32.png"/>
+  <IconUrl DefaultValue="https://f9c54bff-d028-4dbd-bef2-94a4294151b9-00-226leqeczdzxf.worf.replit.dev/icon-32.png"/>
 
-  <HighResolutionIconUrl DefaultValue="https://bank-analyzer-ui.onrender.com/icon-80.png"/>
+  <HighResolutionIconUrl DefaultValue="https://f9c54bff-d028-4dbd-bef2-94a4294151b9-00-226leqeczdzxf.worf.replit.dev/icon-80.png"/>
 
-  <SupportUrl DefaultValue="https://bank-analyzer-ui.onrender.com"/>
+  <SupportUrl DefaultValue="https://f9c54bff-d028-4dbd-bef2-94a4294151b9-00-226leqeczdzxf.worf.replit.dev"/>
 
   <Hosts>
     <Host Name="Workbook"/>
@@ -33,7 +33,7 @@
   </Requirements>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://bank-analyzer-ui.onrender.com"/>
+    <SourceLocation DefaultValue="https://f9c54bff-d028-4dbd-bef2-94a4294151b9-00-226leqeczdzxf.worf.replit.dev"/>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
