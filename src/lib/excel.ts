@@ -121,7 +121,6 @@ export async function clearHighlights(sheet: Excel.Worksheet): Promise<void> {
   usedRange.load("rowCount,columnCount");
   await ctx.sync();
   usedRange.format.fill.clear();
-  usedRange.format.font.color = "";
   await ctx.sync();
 }
 
