@@ -1,7 +1,10 @@
 import type { Summary } from "./categorizer";
 
-function fmtNum(n: number): string {
-  return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
+function makeFmt(symbol: string) {
+  return (n: number) => {
+    const abs = Math.abs(n);
+    return `${symbol}${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  };
 }
 
 function fmtPct(n: number): string {
@@ -21,10 +24,11 @@ function catBadge(name: string, color: string): string {
   return `<span style="background:${bg};color:${color};border:1px solid ${color}44;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${name}</span>`;
 }
 
-export function buildReportHtml(summary: Summary, appName: string): string {
+export function buildReportHtml(summary: Summary, appName: string, currencySymbol = "₦"): string {
+  const fmtNum = makeFmt(currencySymbol);
   const sortedCats = Object.entries(summary.byCategory).sort((a, b) => b[1].total - a[1].total);
   const maxCat = sortedCats[0]?.[1].total || 1;
-  const now = new Date().toLocaleString("en-NG", { dateStyle: "full", timeStyle: "short" });
+  const now = new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
 
   // ── KPI cards ─────────────────────────────────────────────────────────────
   const kpiCards = [
@@ -309,8 +313,8 @@ export function buildReportHtml(summary: Summary, appName: string): string {
   return html;
 }
 
-export function exportToPdf(summary: Summary, appName: string): void {
-  const html = buildReportHtml(summary, appName);
+export function exportToPdf(summary: Summary, appName: string, currencySymbol = "₦"): void {
+  const html = buildReportHtml(summary, appName, currencySymbol);
   const win = window.open("", "_blank");
   if (!win) {
     alert("Pop-up blocked. Please allow pop-ups for this add-in to export PDF.");

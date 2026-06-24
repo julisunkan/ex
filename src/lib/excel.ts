@@ -9,14 +9,16 @@ export type ColumnMap = {
   type: number | null;
 };
 
-export function fmt(n: number): string {
-  return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
+export function fmt(n: number, symbol = "₦"): string {
+  const abs = Math.abs(n);
+  return `${symbol}${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
-export function fmtShort(n: number): string {
-  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `₦${(n / 1_000).toFixed(0)}K`;
-  return `₦${n.toFixed(0)}`;
+export function fmtShort(n: number, symbol = "₦"): string {
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${symbol}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${symbol}${(abs / 1_000).toFixed(0)}K`;
+  return `${symbol}${abs.toFixed(0)}`;
 }
 
 export async function detectColumns(sheet: Excel.Worksheet): Promise<ColumnMap | null> {
@@ -124,7 +126,7 @@ export async function clearHighlights(sheet: Excel.Worksheet): Promise<void> {
   await ctx.sync();
 }
 
-export async function createSummarySheet(summary: Summary, context: Excel.RequestContext): Promise<void> {
+export async function createSummarySheet(summary: Summary, context: Excel.RequestContext, currencySymbol = "₦"): Promise<void> {
   const sheetName = "BSA Summary";
 
   try {
@@ -138,7 +140,7 @@ export async function createSummarySheet(summary: Summary, context: Excel.Reques
   const summarySheet = context.workbook.worksheets.add(sheetName);
   summarySheet.activate();
 
-  const now = new Date().toLocaleDateString("en-NG");
+  const now = new Date().toLocaleDateString("en-US");
 
   const data: (string | number)[][] = [
     ["Bank Statement Analyzer Pro — Summary Report"],
@@ -152,7 +154,7 @@ export async function createSummarySheet(summary: Summary, context: Excel.Reques
     ["Health Score (/100)", summary.healthScore],
     [],
     ["SPENDING BY CATEGORY"],
-    ["Category", "Amount (₦)", "Transactions", "% of Expenses"],
+    [`Category`, `Amount (${currencySymbol})`, "Transactions", "% of Expenses"],
   ];
 
   const sortedCats = Object.entries(summary.byCategory).sort((a, b) => b[1].total - a[1].total);
@@ -164,7 +166,7 @@ export async function createSummarySheet(summary: Summary, context: Excel.Reques
   if (summary.monthly.length > 1) {
     data.push([]);
     data.push(["MONTHLY BREAKDOWN"]);
-    data.push(["Month", "Income (₦)", "Expenses (₦)", "Net (₦)"]);
+    data.push(["Month", `Income (${currencySymbol})`, `Expenses (${currencySymbol})`, `Net (${currencySymbol})`]);
     for (const m of summary.monthly) {
       data.push([m.month, m.income, m.expenses, m.net]);
     }
@@ -173,7 +175,7 @@ export async function createSummarySheet(summary: Summary, context: Excel.Reques
   if (summary.recurring.length > 0) {
     data.push([]);
     data.push(["RECURRING TRANSACTIONS"]);
-    data.push(["Description", "Occurrences", "Avg Amount (₦)", "Total (₦)"]);
+    data.push(["Description", "Occurrences", `Avg Amount (${currencySymbol})`, `Total (${currencySymbol})`]);
     for (const r of summary.recurring) {
       data.push([r.description, r.count, Math.round(r.avgAmount), Math.round(r.totalAmount)]);
     }
@@ -181,7 +183,7 @@ export async function createSummarySheet(summary: Summary, context: Excel.Reques
 
   data.push([]);
   data.push(["ALL TRANSACTIONS"]);
-  data.push(["Date", "Description", "Amount (₦)", "Type", "Category"]);
+  data.push(["Date", "Description", `Amount (${currencySymbol})`, "Type", "Category"]);
   for (const tx of summary.transactions) {
     data.push([tx.date, tx.description, tx.amount, tx.type.toUpperCase(), tx.category.name]);
   }
