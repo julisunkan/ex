@@ -1,0 +1,62 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "ZP4XPmf5Tmf1cOYB_dt94"
+uri = "file://public/icon-80.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "ECUe-oxWIh4jD8e5UeSNn"
+uri = "file://src/assets/icons/icon-analyze.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "GuOwXv5m3hyqvc2FzjO1v"
+uri = "file://src/assets/icons/icon-paste.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "U0lJRUmgNzcheyDIDwemL"
+uri = "file://src/assets/icons/icon-income.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "j7z0RED3R3IRVv0dn001r"
+uri = "file://src/assets/icons/icon-expenses.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "vG77rLjLUfkYnykeG1nM6"
+uri = "file://src/assets/icons/icon-savings.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "V6Zmj-6SGcB_0277GMLyM"
+uri = "file://src/assets/icons/icon-rate.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Av3G3ZXAEQ26NQngniqst"
+uri = "file://src/assets/icons/icon-highlight.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "WmKpQsDUN92IzMQto4QfG"
+uri = "file://src/assets/icons/icon-export.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "6dfiKD379i-CrsdNE5Hbp"
+uri = "file://src/assets/icons/icon-pro.png"
+type = "image"
+title = "generated_image"

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchAdminWallet, verifyPayment, setLicense } from "../lib/payment";
+import iconHighlight from "@assets/icons/icon-highlight.png";
+import iconExport from "@assets/icons/icon-export.png";
 
 interface Props {
   onUnlocked: () => void;
@@ -70,11 +72,11 @@ export default function PaymentGate({ onUnlocked, onDismiss }: Props) {
           {/* Premium feature list */}
           <div className="grid grid-cols-2 gap-2">
             {[
-              { icon: "✨", label: "Highlight Cells", desc: "Color-code by category" },
-              { icon: "📊", label: "Export Sheet", desc: "Full summary report" },
+              { icon: iconHighlight, label: "Highlight Cells", desc: "Color-code by category" },
+              { icon: iconExport, label: "Export Sheet", desc: "Full summary report" },
             ].map((f) => (
               <div key={f.label} className="bg-blue-50 rounded-lg p-2.5 border border-blue-100">
-                <p className="text-base mb-0.5">{f.icon}</p>
+                <img src={f.icon} alt={f.label} className="w-8 h-8 object-contain mb-1" />
                 <p className="text-xs font-semibold text-blue-800">{f.label}</p>
                 <p className="text-[10px] text-blue-600">{f.desc}</p>
               </div>

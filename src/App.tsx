@@ -12,6 +12,16 @@ import { parsePastedText, writeToExcelSheet } from "./lib/csv-parser";
 import { getLicense, checkLicenseValid } from "./lib/payment";
 import PaymentGate from "./components/PaymentGate";
 import { useAppConfig } from "./context/AppConfigContext";
+import iconLogo from "@assets/icons/icon-logo.png";
+import iconAnalyze from "@assets/icons/icon-analyze.png";
+import iconPaste from "@assets/icons/icon-paste.png";
+import iconIncome from "@assets/icons/icon-income.png";
+import iconExpenses from "@assets/icons/icon-expenses.png";
+import iconSavings from "@assets/icons/icon-savings.png";
+import iconRate from "@assets/icons/icon-rate.png";
+import iconHighlight from "@assets/icons/icon-highlight.png";
+import iconExport from "@assets/icons/icon-export.png";
+import iconPro from "@assets/icons/icon-pro.png";
 
 declare const Excel: typeof import("@microsoft/office-js").Excel;
 declare const Office: typeof import("@microsoft/office-js");
@@ -33,7 +43,7 @@ function KpiCard({ label, value, color, icon }: { label: string; value: string; 
   return (
     <div className="bg-white border border-border rounded-xl p-4 shadow-sm">
       <div className="flex items-center gap-1.5 mb-2">
-        <span className="text-base">{icon}</span>
+        <img src={icon} alt={label} className="w-5 h-5 object-contain" />
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
       </div>
       <p className={`text-xl font-extrabold tracking-tight ${color}`}>{value}</p>
@@ -189,11 +199,8 @@ export default function App() {
 
       {/* ── Header ── */}
       <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-border shadow-sm shrink-0">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary shadow-sm">
-          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <rect x="2" y="3" width="20" height="18" rx="2" />
-            <path d="M8 7h8M8 11h8M8 15h5" />
-          </svg>
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl overflow-hidden shadow-sm">
+          <img src={iconLogo} alt="App logo" className="w-9 h-9 object-cover" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-bold text-[15px] leading-tight text-foreground truncate">{appName}</div>
@@ -201,8 +208,8 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isPro && (
-            <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 tracking-wide">
-              ⭐ PRO
+            <span className="flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 tracking-wide">
+              <img src={iconPro} alt="Pro" className="w-3.5 h-3.5 object-contain" /> PRO
             </span>
           )}
           {(step === "results" || step === "error" || step === "paste") && (
@@ -225,11 +232,8 @@ export default function App() {
           <div className="flex flex-col items-center justify-center min-h-full px-5 py-8 text-center gap-7">
             {/* Hero */}
             <div className="flex flex-col items-center gap-3">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center shadow-inner">
-                <svg className="w-8 h-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 1 1 0 10h-2" />
-                  <line x1="8" y1="12" x2="16" y2="12" />
-                </svg>
+              <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md">
+                <img src={iconLogo} alt="Bank Statement Analyzer" className="w-16 h-16 object-cover" />
               </div>
               <div>
                 <h1 className="text-xl font-extrabold text-foreground tracking-tight mb-1">{appName}</h1>
@@ -242,10 +246,8 @@ export default function App() {
               <button onClick={analyzeSheet}
                 className="w-full text-left bg-white border-2 border-border rounded-xl p-4 hover:border-primary/60 hover:shadow-md transition-all group">
                 <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
-                    <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
-                    </svg>
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors overflow-hidden">
+                    <img src={iconAnalyze} alt="Analyze sheet" className="w-8 h-8 object-contain" />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-foreground">Analyze Active Sheet</p>
@@ -260,11 +262,8 @@ export default function App() {
               <button onClick={() => setStep("paste")}
                 className="w-full text-left bg-white border-2 border-border rounded-xl p-4 hover:border-primary/60 hover:shadow-md transition-all group">
                 <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0 group-hover:bg-accent/20 transition-colors">
-                    <svg className="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                      <rect x="8" y="2" width="8" height="4" rx="1" /><path d="M9 12h6M9 16h4" />
-                    </svg>
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center shrink-0 group-hover:bg-accent/20 transition-colors overflow-hidden">
+                    <img src={iconPaste} alt="Paste CSV" className="w-8 h-8 object-contain" />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-foreground">Paste CSV / Text</p>
@@ -405,9 +404,7 @@ export default function App() {
               <ActionBtn variant="secondary" onClick={handleHighlight} disabled={highlighting}>
                 {highlighting
                   ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  : isPro
-                  ? <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-                  : <span>🔒</span>
+                  : <img src={iconHighlight} alt="Highlight" className="w-4 h-4 object-contain opacity-90" />
                 }
                 Highlight
               </ActionBtn>
@@ -416,9 +413,7 @@ export default function App() {
                   ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   : exportDone
                   ? <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                  : isPro
-                  ? <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                  : <span>🔒</span>
+                  : <img src={iconExport} alt="Export" className="w-4 h-4 object-contain opacity-90" />
                 }
                 {exportDone ? "Exported!" : "Export Sheet"}
               </ActionBtn>
@@ -455,10 +450,10 @@ export default function App() {
               {activeTab === "overview" && (
                 <>
                   <div className="grid grid-cols-2 gap-3">
-                    <KpiCard label="Income" value={fmt(summary.totalIncome)} color="text-green-600" icon="💰" />
-                    <KpiCard label="Expenses" value={fmt(summary.totalExpenses)} color="text-red-500" icon="💸" />
-                    <KpiCard label="Net Savings" value={fmt(summary.net)} color={summary.net >= 0 ? "text-blue-600" : "text-red-500"} icon="📈" />
-                    <KpiCard label="Savings Rate" value={`${summary.savingsRate}%`} color={summary.savingsRate >= 20 ? "text-green-600" : summary.savingsRate >= 10 ? "text-yellow-600" : "text-red-500"} icon="📊" />
+                    <KpiCard label="Income" value={fmt(summary.totalIncome)} color="text-green-600" icon={iconIncome} />
+                    <KpiCard label="Expenses" value={fmt(summary.totalExpenses)} color="text-red-500" icon={iconExpenses} />
+                    <KpiCard label="Net Savings" value={fmt(summary.net)} color={summary.net >= 0 ? "text-blue-600" : "text-red-500"} icon={iconSavings} />
+                    <KpiCard label="Savings Rate" value={`${summary.savingsRate}%`} color={summary.savingsRate >= 20 ? "text-green-600" : summary.savingsRate >= 10 ? "text-yellow-600" : "text-red-500"} icon={iconRate} />
                   </div>
 
                   {/* Health indicator */}
