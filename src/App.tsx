@@ -124,6 +124,7 @@ export default function App() {
   const [highlightDone, setHighlightDone] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [clearDone, setClearDone] = useState(false);
+  const [reAnalyzing, setReAnalyzing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportDone, setExportDone] = useState(false);
   const [activeTab, setActiveTab] = useState<ResultTab>("overview");
@@ -191,6 +192,30 @@ export default function App() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
       setStep("error");
+    }
+  }, []);
+
+  const doReAnalyze = useCallback(async () => {
+    setReAnalyzing(true);
+    setActionError("");
+    try {
+      const txns: Transaction[] = await runExcel(async (ctx) => {
+        const sheet = ctx.workbook.worksheets.getActiveWorksheet();
+        sheet.load("name");
+        await ctx.sync();
+        const columnMap: ColumnMap | null = await detectColumns(sheet);
+        if (!columnMap) throw new Error("Could not find required columns (Date, Description, Amount) in row 1.");
+        return await readTransactions(sheet, columnMap);
+      });
+      if (txns.length === 0) throw new Error("No transactions found in the active sheet.");
+      setSummary(buildSummary(txns));
+      setExportDone(false);
+      setHighlightDone(false);
+      setClearDone(false);
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReAnalyzing(false);
     }
   }, []);
 
@@ -470,6 +495,23 @@ export default function App() {
               className="flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 tracking-wide hover:bg-amber-200 transition-colors"
             >
               <img src={iconPro} alt="Pro" className="w-3.5 h-3.5 object-contain" /> PRO
+            </button>
+          )}
+          {step === "results" && (
+            <button
+              onClick={doReAnalyze}
+              disabled={reAnalyzing}
+              title="Re-read the active sheet and refresh results"
+              data-testid="button-reanalyze"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg
+                className={`w-4 h-4 ${reAnalyzing ? "animate-spin" : ""}`}
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
             </button>
           )}
           {(step === "results" || step === "error" || step === "paste" || step === "subscription") && (
