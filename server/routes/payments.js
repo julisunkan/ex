@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { readFileSync, writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { notifyNewLicense } from "../lib/notify.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LICENSES_FILE = join(__dirname, "../data/licenses.json");
@@ -175,6 +176,10 @@ router.post("/verify", async (req, res) => {
   const expiresAt  = new Date(Date.now() + plan.days * 24 * 60 * 60 * 1000).toISOString();
   saveLicense(licenseKey, txHash, plan.id, expiresAt);
   console.log(`✅ License issued: ${licenseKey} | plan: ${plan.id} | expires: ${expiresAt}`);
+
+  notifyNewLicense({ licenseKey, planLabel: plan.label, planId: plan.id, expiresAt, txHash, network: cfg.network })
+    .catch((err) => console.warn("[notify] fire-and-forget error:", err.message));
+
   res.json({ licenseKey, expiresAt, planId: plan.id, planLabel: plan.label });
 });
 

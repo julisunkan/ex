@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   KeyRound, LogOut, RefreshCw, ShieldCheck, Copy, Check,
   CreditCard, Palette, Database, Download, Upload, Save, Eye, EyeOff,
-  Rocket, ExternalLink, AlertCircle, CheckCircle2, Terminal
+  Rocket, ExternalLink, AlertCircle, CheckCircle2, Terminal, Bell
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -20,10 +20,16 @@ interface Plan {
   days: number;
 }
 
+interface EmailNotifyCfg {
+  enabled: boolean; to: string; smtpHost: string; smtpPort: number;
+  smtpUser: string; smtpPass: string; from: string;
+}
+
 interface Settings {
   appearance: { name: string; tagline: string; primaryColor: string; accentColor: string; radius: string; };
   payment: { walletAddress: string; network: string; };
   plans: Plan[];
+  notifications: { webhookUrl: string; email: EmailNotifyCfg; };
   features: { proEnabled: boolean; };
 }
 
@@ -861,15 +867,178 @@ function SetupTab() {
   );
 }
 
+// ── Notifications tab ─────────────────────────────────────────────────────────
+const DEFAULT_EMAIL_CFG: EmailNotifyCfg = {
+  enabled: false, to: "", smtpHost: "", smtpPort: 587, smtpUser: "", smtpPass: "", from: "",
+};
+
+function NotificationsTab({ pw, settings, onSaved }: { pw: string; settings: Settings; onSaved: (s: Settings) => void }) {
+  const [webhookUrl, setWebhookUrl] = useState(settings.notifications?.webhookUrl ?? "");
+  const [email, setEmail] = useState<EmailNotifyCfg>(settings.notifications?.email ?? DEFAULT_EMAIL_CFG);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    setWebhookUrl(settings.notifications?.webhookUrl ?? "");
+    setEmail(settings.notifications?.email ?? DEFAULT_EMAIL_CFG);
+  }, [settings]);
+
+  function setEmailField<K extends keyof EmailNotifyCfg>(k: K, v: EmailNotifyCfg[K]) {
+    setEmail(e => ({ ...e, [k]: v }));
+  }
+
+  async function save() {
+    setSaving(true);
+    const res = await fetch(`${API_BASE}/api/admin/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      body: JSON.stringify({ notifications: { webhookUrl, email } }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      const data = await res.json();
+      onSaved(data.settings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  }
+
+  async function sendTest() {
+    setTesting(true);
+    setTestMsg(null);
+    const saveRes = await fetch(`${API_BASE}/api/admin/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      body: JSON.stringify({ notifications: { webhookUrl, email } }),
+    });
+    if (!saveRes.ok) { setTesting(false); setTestMsg({ ok: false, text: "Failed to save before testing." }); return; }
+    const data = await saveRes.json();
+    onSaved(data.settings);
+
+    const res = await fetch(`${API_BASE}/api/admin/notify-test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+    });
+    setTesting(false);
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) setTestMsg({ ok: true, text: json.message || "Test notification sent!" });
+    else setTestMsg({ ok: false, text: json.error || "Test failed." });
+    setTimeout(() => setTestMsg(null), 6000);
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Webhook */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Webhook Notification</CardTitle>
+          <p className="text-sm text-muted-foreground">Works with Discord, Slack, Make.com, Zapier, n8n — paste any incoming webhook URL.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Webhook URL</label>
+            <Input
+              value={webhookUrl}
+              onChange={e => setWebhookUrl(e.target.value)}
+              placeholder="https://discord.com/api/webhooks/… or https://hooks.slack.com/…"
+              className="font-mono text-sm"
+              data-testid="input-webhook-url"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A JSON payload with plan, license key, expiry, and TX hash is POSTed to this URL each time a new subscription activates.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Email */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Email Notification (SMTP)</CardTitle>
+          <p className="text-sm text-muted-foreground">Send yourself an email via your own SMTP server (Gmail, Mailgun, etc.) on each new activation.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={email.enabled} onChange={e => setEmailField("enabled", e.target.checked)}
+              className="w-4 h-4 rounded accent-primary" data-testid="checkbox-email-enabled" />
+            <span className="text-sm font-medium">Enable email notifications</span>
+          </label>
+
+          <div className={`space-y-3 transition-opacity ${email.enabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-medium mb-1 block text-muted-foreground">Notify to (your email)</label>
+                <Input value={email.to} onChange={e => setEmailField("to", e.target.value)}
+                  placeholder="you@example.com" type="email" data-testid="input-email-to" />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block text-muted-foreground">From address (optional)</label>
+                <Input value={email.from} onChange={e => setEmailField("from", e.target.value)}
+                  placeholder="noreply@yourdomain.com" type="email" data-testid="input-email-from" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium mb-1 block text-muted-foreground">SMTP Host</label>
+                <Input value={email.smtpHost} onChange={e => setEmailField("smtpHost", e.target.value)}
+                  placeholder="smtp.gmail.com" data-testid="input-smtp-host" />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block text-muted-foreground">Port</label>
+                <Input type="number" value={email.smtpPort} onChange={e => setEmailField("smtpPort", Number(e.target.value))}
+                  placeholder="587" className="font-mono" data-testid="input-smtp-port" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-medium mb-1 block text-muted-foreground">SMTP Username</label>
+                <Input value={email.smtpUser} onChange={e => setEmailField("smtpUser", e.target.value)}
+                  placeholder="you@gmail.com" data-testid="input-smtp-user" />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block text-muted-foreground">SMTP Password / App Password</label>
+                <Input type="password" value={email.smtpPass} onChange={e => setEmailField("smtpPass", e.target.value)}
+                  placeholder="••••••••" data-testid="input-smtp-pass" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground bg-muted rounded-md p-3">
+              Gmail tip: Use port 587, your Gmail address as username, and an <strong>App Password</strong> (not your regular password). Generate one at myaccount.google.com → Security → App passwords.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {testMsg && (
+        <div className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm ${testMsg.ok ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+          {testMsg.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+          {testMsg.text}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={save} disabled={saving} className="gap-2" data-testid="button-save-notifications">
+          {saved ? <><Check className="w-4 h-4" /> Saved!</> : saving ? "Saving…" : <><Save className="w-4 h-4" /> Save Notifications</>}
+        </Button>
+        <Button variant="outline" onClick={sendTest} disabled={testing} className="gap-2" data-testid="button-test-notification">
+          {testing ? "Sending…" : <><Bell className="w-4 h-4" /> Send Test</>}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main admin page ───────────────────────────────────────────────────────────
-type Tab = "licenses" | "payment" | "appearance" | "backup" | "setup";
+type Tab = "licenses" | "payment" | "appearance" | "notifications" | "backup" | "setup";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "licenses",   label: "Licenses",   icon: <KeyRound className="w-4 h-4" /> },
-  { id: "payment",    label: "Payment",    icon: <CreditCard className="w-4 h-4" /> },
-  { id: "appearance", label: "Appearance", icon: <Palette className="w-4 h-4" /> },
-  { id: "backup",     label: "Backup",     icon: <Database className="w-4 h-4" /> },
-  { id: "setup",      label: "Setup Guide", icon: <Rocket className="w-4 h-4" /> },
+  { id: "licenses",      label: "Licenses",      icon: <KeyRound className="w-4 h-4" /> },
+  { id: "payment",       label: "Payment",       icon: <CreditCard className="w-4 h-4" /> },
+  { id: "notifications", label: "Notifications", icon: <Bell className="w-4 h-4" /> },
+  { id: "appearance",    label: "Appearance",    icon: <Palette className="w-4 h-4" /> },
+  { id: "backup",        label: "Backup",        icon: <Database className="w-4 h-4" /> },
+  { id: "setup",         label: "Setup Guide",   icon: <Rocket className="w-4 h-4" /> },
 ];
 
 export default function AdminPage() {
@@ -933,12 +1102,13 @@ export default function AdminPage() {
         </div>
 
         {/* Tab content */}
-        {tab === "licenses"   && <LicensesTab pw={pw} />}
-        {tab === "payment"    && settings && <PaymentTab pw={pw} settings={settings} onSaved={setSettings} />}
-        {tab === "appearance" && settings && <AppearanceTab pw={pw} settings={settings} onSaved={setSettings} />}
-        {tab === "backup"     && <BackupTab pw={pw} />}
-        {tab === "setup"      && <SetupTab />}
-        {(tab === "payment" || tab === "appearance") && !settings && (
+        {tab === "licenses"      && <LicensesTab pw={pw} />}
+        {tab === "payment"       && settings && <PaymentTab pw={pw} settings={settings} onSaved={setSettings} />}
+        {tab === "notifications" && settings && <NotificationsTab pw={pw} settings={settings} onSaved={setSettings} />}
+        {tab === "appearance"    && settings && <AppearanceTab pw={pw} settings={settings} onSaved={setSettings} />}
+        {tab === "backup"        && <BackupTab pw={pw} />}
+        {tab === "setup"         && <SetupTab />}
+        {(tab === "payment" || tab === "appearance" || tab === "notifications") && !settings && (
           <div className="text-center py-12 text-muted-foreground text-sm">Loading settings…</div>
         )}
       </div>
