@@ -29,7 +29,7 @@ interface Settings {
   appearance: { name: string; tagline: string; primaryColor: string; accentColor: string; radius: string; };
   payment: { walletAddress: string; network: string; };
   plans: Plan[];
-  notifications: { webhookUrl: string; email: EmailNotifyCfg; };
+  notifications: { webhookUrl: string; remindersEnabled: boolean; reminderDays: number; email: EmailNotifyCfg; };
   features: { proEnabled: boolean; };
 }
 
@@ -875,6 +875,8 @@ const DEFAULT_EMAIL_CFG: EmailNotifyCfg = {
 function NotificationsTab({ pw, settings, onSaved }: { pw: string; settings: Settings; onSaved: (s: Settings) => void }) {
   const [webhookUrl, setWebhookUrl] = useState(settings.notifications?.webhookUrl ?? "");
   const [email, setEmail] = useState<EmailNotifyCfg>(settings.notifications?.email ?? DEFAULT_EMAIL_CFG);
+  const [remindersEnabled, setRemindersEnabled] = useState(settings.notifications?.remindersEnabled ?? false);
+  const [reminderDays, setReminderDays] = useState(settings.notifications?.reminderDays ?? 3);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -883,6 +885,8 @@ function NotificationsTab({ pw, settings, onSaved }: { pw: string; settings: Set
   useEffect(() => {
     setWebhookUrl(settings.notifications?.webhookUrl ?? "");
     setEmail(settings.notifications?.email ?? DEFAULT_EMAIL_CFG);
+    setRemindersEnabled(settings.notifications?.remindersEnabled ?? false);
+    setReminderDays(settings.notifications?.reminderDays ?? 3);
   }, [settings]);
 
   function setEmailField<K extends keyof EmailNotifyCfg>(k: K, v: EmailNotifyCfg[K]) {
@@ -894,7 +898,7 @@ function NotificationsTab({ pw, settings, onSaved }: { pw: string; settings: Set
     const res = await fetch(`${API_BASE}/api/admin/settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", "x-admin-password": pw },
-      body: JSON.stringify({ notifications: { webhookUrl, email } }),
+      body: JSON.stringify({ notifications: { webhookUrl, email, remindersEnabled, reminderDays } }),
     });
     setSaving(false);
     if (res.ok) {
@@ -1006,6 +1010,37 @@ function NotificationsTab({ pw, settings, onSaved }: { pw: string; settings: Set
             <p className="text-xs text-muted-foreground bg-muted rounded-md p-3">
               Gmail tip: Use port 587, your Gmail address as username, and an <strong>App Password</strong> (not your regular password). Generate one at myaccount.google.com → Security → App passwords.
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Renewal reminders */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Renewal Reminders</CardTitle>
+          <p className="text-sm text-muted-foreground">Automatically email subscribers before their plan expires (requires Email SMTP above).</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={remindersEnabled} onChange={e => setRemindersEnabled(e.target.checked)}
+              className="w-4 h-4 rounded accent-primary" data-testid="checkbox-reminders-enabled" />
+            <span className="text-sm font-medium">Send renewal reminder emails to subscribers</span>
+          </label>
+
+          <div className={`space-y-1 transition-opacity ${remindersEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+            <label className="text-xs font-medium text-muted-foreground block">Days before expiry to send reminder</label>
+            <div className="flex items-center gap-2">
+              <Input type="number" min="1" max="30" value={reminderDays}
+                onChange={e => setReminderDays(Number(e.target.value))}
+                className="w-24 font-mono" data-testid="input-reminder-days" />
+              <span className="text-sm text-muted-foreground">days before expiry</span>
+            </div>
+          </div>
+
+          <div className="text-xs text-muted-foreground bg-muted rounded-md p-3 space-y-1">
+            <p>• Subscribers provide their email optionally during payment checkout.</p>
+            <p>• The server checks every 6 hours and sends one reminder per license.</p>
+            <p>• Requires <strong>Email SMTP</strong> to be configured and enabled above.</p>
           </div>
         </CardContent>
       </Card>

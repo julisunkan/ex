@@ -3,6 +3,7 @@ import cors from "cors";
 import paymentsRouter from "./routes/payments.js";
 import adminRouter from "./routes/admin.js";
 import settingsRouter from "./routes/settings.js";
+import { startExpiryChecker } from "./lib/expiry-checker.js";
 
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 const app = express();
@@ -22,6 +23,7 @@ const HOST = "0.0.0.0";
 
 app.listen(PORT, HOST, () => {
   console.log(`🚀 Payment API running on http://localhost:${PORT}`);
+  startExpiryChecker();
 
   const wallet = process.env.USDT_WALLET_ADDRESS;
   const network = process.env.USDT_NETWORK || "tron";

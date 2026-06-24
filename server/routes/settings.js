@@ -29,6 +29,8 @@ const DEFAULT_SETTINGS = {
   plans: DEFAULT_PLANS,
   notifications: {
     webhookUrl: "",
+    remindersEnabled: false,
+    reminderDays: 3,
     email: { enabled: false, to: "", smtpHost: "", smtpPort: 587, smtpUser: "", smtpPass: "", from: "" },
   },
   features: { proEnabled: true },
@@ -45,7 +47,9 @@ function loadSettings() {
       payment:       { ...DEFAULT_SETTINGS.payment,                 ...(raw.payment       || {}) },
       plans:         Array.isArray(raw.plans) && raw.plans.length === 4 ? raw.plans : DEFAULT_PLANS,
       notifications: {
-        webhookUrl: raw.notifications?.webhookUrl ?? "",
+        webhookUrl:       raw.notifications?.webhookUrl       ?? "",
+        remindersEnabled: raw.notifications?.remindersEnabled ?? false,
+        reminderDays:     raw.notifications?.reminderDays     ?? 3,
         email: { ...DEFAULT_SETTINGS.notifications.email, ...rawEmail },
       },
       features:      { ...DEFAULT_SETTINGS.features,                ...(raw.features      || {}) },
@@ -105,7 +109,9 @@ router.put("/settings", requireAdmin, (req, res) => {
     payment:       { ...current.payment,       ...(patch.payment       || {}) },
     plans:         Array.isArray(patch.plans) ? patch.plans : current.plans,
     notifications: {
-      webhookUrl: patch.notifications?.webhookUrl ?? current.notifications?.webhookUrl ?? "",
+      webhookUrl:       patch.notifications?.webhookUrl       ?? current.notifications?.webhookUrl       ?? "",
+      remindersEnabled: patch.notifications?.remindersEnabled ?? current.notifications?.remindersEnabled ?? false,
+      reminderDays:     patch.notifications?.reminderDays     ?? current.notifications?.reminderDays     ?? 3,
       email: { ...current.notifications?.email, ...patchEmail },
     },
     features:      { ...current.features,      ...(patch.features      || {}) },

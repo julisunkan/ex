@@ -30,8 +30,9 @@ async function sendWebhook(url, payload) {
   }
 }
 
-async function sendEmail(cfg, subject, text) {
-  if (!cfg?.enabled || !cfg?.smtpHost || !cfg?.to) return;
+async function sendEmail(cfg, subject, text, overrideTo) {
+  const recipient = overrideTo || cfg?.to;
+  if (!cfg?.smtpHost || !recipient) return;
   try {
     const transporter = nodemailer.createTransport({
       host: cfg.smtpHost,
@@ -41,7 +42,7 @@ async function sendEmail(cfg, subject, text) {
     });
     await transporter.sendMail({
       from: cfg.from || cfg.smtpUser || "noreply@bankstatementanalyzer.app",
-      to: cfg.to,
+      to: recipient,
       subject,
       text,
     });
@@ -49,6 +50,23 @@ async function sendEmail(cfg, subject, text) {
   } catch (err) {
     console.warn("[notify] Email failed:", err.message);
   }
+}
+
+export async function notifyExpiryReminder({ licenseKey, planLabel, expiresAt, daysLeft, userEmail, smtpCfg }) {
+  if (!userEmail || !smtpCfg?.enabled || !smtpCfg?.smtpHost) return;
+  const expDate = expiresAt ? new Date(expiresAt).toLocaleDateString() : "soon";
+  const subject = `Your ${planLabel} subscription expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`;
+  const text = [
+    `Hi,`,
+    ``,
+    `Your Bank Statement Analyzer ${planLabel} subscription is expiring in ${daysLeft} day${daysLeft === 1 ? "" : "s"} (${expDate}).`,
+    ``,
+    `To continue using Pro features, open the add-in and renew by paying for a new subscription.`,
+    `Your license key: ${licenseKey}`,
+    ``,
+    `Thank you for using Bank Statement Analyzer!`,
+  ].join("\n");
+  await sendEmail(smtpCfg, subject, text, userEmail);
 }
 
 export async function notifyNewLicense({ licenseKey, planLabel, planId, expiresAt, txHash, network }) {

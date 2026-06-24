@@ -66,7 +66,7 @@ function txAlreadyUsed(txHash) {
   return loadLicenses().some((l) => l.txHash === txHash);
 }
 
-function saveLicense(licenseKey, txHash, planId, expiresAt) {
+function saveLicense(licenseKey, txHash, planId, expiresAt, email) {
   const licenses = loadLicenses();
   licenses.push({
     licenseKey,
@@ -74,6 +74,7 @@ function saveLicense(licenseKey, txHash, planId, expiresAt) {
     planId:    planId    ?? null,
     expiresAt: expiresAt ?? null,
     issuedAt:  new Date().toISOString(),
+    email:     email     ?? null,
   });
   saveLicenses(licenses);
 }
@@ -147,7 +148,7 @@ router.get("/config", (req, res) => {
 
 // POST /api/payments/verify
 router.post("/verify", async (req, res) => {
-  const { txHash, planId } = req.body || {};
+  const { txHash, planId, email } = req.body || {};
   if (!txHash) return res.status(400).json({ error: "txHash is required" });
 
   if (txAlreadyUsed(txHash)) {
@@ -174,7 +175,8 @@ router.post("/verify", async (req, res) => {
 
   const licenseKey = generateLicenseKey();
   const expiresAt  = new Date(Date.now() + plan.days * 24 * 60 * 60 * 1000).toISOString();
-  saveLicense(licenseKey, txHash, plan.id, expiresAt);
+  const cleanEmail = typeof email === "string" && email.includes("@") ? email.trim().toLowerCase() : null;
+  saveLicense(licenseKey, txHash, plan.id, expiresAt, cleanEmail);
   console.log(`✅ License issued: ${licenseKey} | plan: ${plan.id} | expires: ${expiresAt}`);
 
   notifyNewLicense({ licenseKey, planLabel: plan.label, planId: plan.id, expiresAt, txHash, network: cfg.network })

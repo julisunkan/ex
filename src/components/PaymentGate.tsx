@@ -24,6 +24,7 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
   const [wallet, setWallet] = useState<string>("");
   const [networkLabel, setNetworkLabel] = useState<string>("TRC-20 (Tron)");
   const [txHash, setTxHash] = useState("");
+  const [userEmail, setUserEmail] = useState("");
   const [payStep, setPayStep] = useState<PayStep>("info");
   const [payError, setPayError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -78,7 +79,8 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
     if (!hash) { setPayError("Please paste your transaction hash."); return; }
     setPayStep("verifying");
     setPayError("");
-    const result = await verifyPayment(hash, selectedPlan?.id ?? "monthly");
+    const email = userEmail.trim().includes("@") ? userEmail.trim() : undefined;
+    const result = await verifyPayment(hash, selectedPlan?.id ?? "monthly", email);
     if (result.success && result.licenseKey) {
       setGeneratedKey(result.licenseKey);
       setLicense(result.licenseKey);
@@ -257,10 +259,28 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
                       onChange={(e) => { setTxHash(e.target.value); setPayError(""); setPayStep("info"); }}
                       placeholder="e.g. 3f8a2b1c4d…"
                       className="w-full rounded-md border border-border bg-white px-2.5 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                      data-testid="input-tx-hash"
                     />
                     {(payStep === "error" || payError) && (
                       <p className="text-[10px] text-destructive mt-1.5 bg-destructive/10 rounded px-2 py-1">{payError}</p>
                     )}
+                  </div>
+
+                  {/* Step 3 — Optional email for renewal reminders */}
+                  <div>
+                    <p className="text-[11px] font-semibold text-foreground mb-1 flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-muted text-muted-foreground text-[9px] flex items-center justify-center font-bold shrink-0 border border-border">3</span>
+                      Your email <span className="text-muted-foreground font-normal">(optional — for renewal reminders)</span>
+                    </p>
+                    <input
+                      type="email"
+                      value={userEmail}
+                      onChange={(e) => setUserEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full rounded-md border border-border bg-white px-2.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                      data-testid="input-user-email"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-0.5">We'll remind you before your subscription expires. No spam.</p>
                   </div>
 
                   <button

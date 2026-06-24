@@ -61,12 +61,13 @@ export async function fetchPaymentConfig(): Promise<PaymentConfig | null> {
 export async function verifyPayment(
   txHash: string,
   planId: string,
+  email?: string,
 ): Promise<{ success: boolean; licenseKey?: string; expiresAt?: string; planLabel?: string; error?: string }> {
   try {
     const res = await fetch(apiUrl("/verify"), {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ txHash, planId, productId: PRODUCT_ID }),
+      body:    JSON.stringify({ txHash, planId, productId: PRODUCT_ID, ...(email ? { email } : {}) }),
     });
     const data = await res.json();
     if (res.ok && data.licenseKey) {
