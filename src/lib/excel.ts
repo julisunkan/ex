@@ -13,6 +13,12 @@ export function fmt(n: number): string {
   return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
 }
 
+export function fmtShort(n: number): string {
+  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `₦${(n / 1_000).toFixed(0)}K`;
+  return `₦${n.toFixed(0)}`;
+}
+
 export async function detectColumns(sheet: Excel.Worksheet): Promise<ColumnMap | null> {
   const headerRange = sheet.getRange("A1:J1");
   headerRange.load("values");
@@ -65,7 +71,6 @@ export async function readTransactions(
       const rawType = String(row[columnMap.type] || "").toLowerCase();
       if (rawType.includes("cr") || rawType.includes("credit")) type = "credit";
     } else {
-      // Heuristic: if amount column header is "credit" and positive, it's income
       type = Number(rawAmount) > 0 ? "credit" : "debit";
     }
 
@@ -96,7 +101,6 @@ export async function highlightTransactions(
 export async function createSummarySheet(summary: Summary, context: Excel.RequestContext): Promise<void> {
   const sheetName = "BSA Summary";
 
-  // Remove existing summary sheet if present
   try {
     const existing = context.workbook.worksheets.getItem(sheetName);
     existing.delete();
@@ -119,18 +123,38 @@ export async function createSummarySheet(summary: Summary, context: Excel.Reques
     ["Total Expenses", summary.totalExpenses],
     ["Net Savings", summary.net],
     ["Savings Rate (%)", summary.savingsRate],
+    ["Health Score (/100)", summary.healthScore],
     [],
     ["SPENDING BY CATEGORY"],
-    ["Category", "Amount (₦)", "Transactions"],
+    ["Category", "Amount (₦)", "Transactions", "% of Expenses"],
   ];
 
   const sortedCats = Object.entries(summary.byCategory).sort((a, b) => b[1].total - a[1].total);
   for (const [name, info] of sortedCats) {
-    data.push([name, info.total, info.count]);
+    const pct = summary.totalExpenses > 0 ? Math.round((info.total / summary.totalExpenses) * 100) : 0;
+    data.push([name, info.total, info.count, pct]);
+  }
+
+  if (summary.monthly.length > 1) {
+    data.push([]);
+    data.push(["MONTHLY BREAKDOWN"]);
+    data.push(["Month", "Income (₦)", "Expenses (₦)", "Net (₦)"]);
+    for (const m of summary.monthly) {
+      data.push([m.month, m.income, m.expenses, m.net]);
+    }
+  }
+
+  if (summary.recurring.length > 0) {
+    data.push([]);
+    data.push(["RECURRING TRANSACTIONS"]);
+    data.push(["Description", "Occurrences", "Avg Amount (₦)", "Total (₦)"]);
+    for (const r of summary.recurring) {
+      data.push([r.description, r.count, Math.round(r.avgAmount), Math.round(r.totalAmount)]);
+    }
   }
 
   data.push([]);
-  data.push(["TRANSACTIONS"]);
+  data.push(["ALL TRANSACTIONS"]);
   data.push(["Date", "Description", "Amount (₦)", "Type", "Category"]);
   for (const tx of summary.transactions) {
     data.push([tx.date, tx.description, tx.amount, tx.type.toUpperCase(), tx.category.name]);
@@ -149,19 +173,38 @@ export async function createSummarySheet(summary: Summary, context: Excel.Reques
   overviewHeader.format.font.bold = true;
   overviewHeader.format.fill.color = "#dbeafe";
 
-  const catHeader = summarySheet.getRange("A10");
-  catHeader.format.font.bold = true;
-  catHeader.format.fill.color = "#dbeafe";
+  const catHeaderRow = 11;
+  summarySheet.getRange(`A${catHeaderRow}`).format.font.bold = true;
+  summarySheet.getRange(`A${catHeaderRow}`).format.fill.color = "#dbeafe";
+  summarySheet.getRange(`A${catHeaderRow + 1}:D${catHeaderRow + 1}`).format.font.bold = true;
+  summarySheet.getRange(`A${catHeaderRow + 1}:D${catHeaderRow + 1}`).format.fill.color = "#e2e8f0";
 
-  summarySheet.getRange("A11:C11").format.font.bold = true;
-  summarySheet.getRange("A11:C11").format.fill.color = "#e2e8f0";
-
-  const txHeaderRow = 11 + sortedCats.length + 3;
-  summarySheet.getRange(`A${txHeaderRow}:E${txHeaderRow}`).format.font.bold = true;
-  summarySheet.getRange(`A${txHeaderRow}:E${txHeaderRow}`).format.fill.color = "#e2e8f0";
-
-  // Auto-fit columns A through E
   summarySheet.getRange("A:E").format.autofitColumns();
 
   await context.sync();
+}
+
+export function exportToCsv(summary: Summary): void {
+  const rows: string[][] = [
+    ["Date", "Description", "Amount", "Type", "Category", "Duplicate?"],
+  ];
+  for (const tx of summary.transactions) {
+    rows.push([
+      tx.date,
+      `"${tx.description.replace(/"/g, '""')}"`,
+      String(tx.amount),
+      tx.type.toUpperCase(),
+      tx.category.name,
+      summary.duplicateRows.has(tx.row) ? "Possible Duplicate" : "",
+    ]);
+  }
+
+  const csv = rows.map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `bank-statement-${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
