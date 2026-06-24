@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server/index.js & vite --config vite.config.ts",
-    "build": "vite build --config vite.config.ts",
-    "serve": "vite preview --config vite.config.ts",
+    "dev": "node server/index.js & npx vite --config vite.config.ts",
+    "build": "npx vite build --config vite.config.ts",
+    "serve": "npx vite preview --config vite.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
