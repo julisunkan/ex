@@ -12,7 +12,11 @@ import {
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface License { licenseKey: string; txHash: string; issuedAt: string; note?: string; expiresAt?: string; }
+interface License {
+  licenseKey: string; txHash: string; issuedAt: string;
+  note?: string; expiresAt?: string; planId?: string;
+  email?: string | null; reminderSent?: boolean;
+}
 interface Plan {
   id: string;
   label: string;
@@ -329,6 +333,34 @@ function LicensesTab({ pw }: { pw: string }) {
       </Card>
 
       {/* List */}
+      {/* Summary stats */}
+      {data && data.licenses.length > 0 && (() => {
+        const now = Date.now();
+        const withEmail    = data.licenses.filter(l => l.email).length;
+        const reminded     = data.licenses.filter(l => l.reminderSent).length;
+        const active       = data.licenses.filter(l => !l.expiresAt || new Date(l.expiresAt).getTime() > now).length;
+        const expiringSoon = data.licenses.filter(l => {
+          if (!l.expiresAt) return false;
+          const ms = new Date(l.expiresAt).getTime() - now;
+          return ms > 0 && ms < 7 * 24 * 60 * 60 * 1000;
+        }).length;
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { label: "Total",          value: data.total,  color: "bg-gray-50 border-gray-200",     text: "text-gray-700"   },
+              { label: "Active",         value: active,      color: "bg-green-50 border-green-200",   text: "text-green-700"  },
+              { label: "Expiring soon",  value: expiringSoon,color: "bg-amber-50 border-amber-200",   text: "text-amber-700"  },
+              { label: "With email",     value: withEmail,   color: "bg-blue-50 border-blue-200",     text: "text-blue-700"   },
+            ].map(s => (
+              <div key={s.label} className={`rounded-xl border ${s.color} px-4 py-3 text-center`}>
+                <p className={`text-2xl font-bold ${s.text}`}>{s.value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       <div className="flex items-center justify-between">
         <Badge variant="secondary">{data?.total ?? 0} licenses issued</Badge>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
@@ -348,7 +380,9 @@ function LicensesTab({ pw }: { pw: string }) {
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground w-8">#</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">License Key</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Source / Note</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Subscriber Email</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Expiry</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Reminder</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Issued At</th>
                     <th className="px-4 py-3 w-8" />
                   </tr>
@@ -360,13 +394,16 @@ function LicensesTab({ pw }: { pw: string }) {
                     const expired = exp !== null && exp < now;
                     const expiringSoon = exp !== null && !expired && exp - now < 7 * 24 * 60 * 60 * 1000;
                     return (
-                    <tr key={l.licenseKey} className={`border-b last:border-0 hover:bg-gray-50 transition-colors ${expired ? "opacity-60" : ""}`}>
+                    <tr key={l.licenseKey} data-testid={`row-license-${l.licenseKey}`} className={`border-b last:border-0 hover:bg-gray-50 transition-colors ${expired ? "opacity-60" : ""}`}>
                       <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <code className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">{l.licenseKey}</code>
+                          <code className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded" data-testid={`text-license-key-${i}`}>{l.licenseKey}</code>
                           <CopyBtn text={l.licenseKey} />
                         </div>
+                        {l.planId && (
+                          <span className="text-[10px] text-muted-foreground mt-0.5 block">{l.planId}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {l.txHash === "MANUAL" ? (
@@ -379,6 +416,16 @@ function LicensesTab({ pw }: { pw: string }) {
                             <span className="font-mono text-xs text-muted-foreground truncate">{l.txHash}</span>
                             <CopyBtn text={l.txHash} />
                           </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {l.email ? (
+                          <div className="flex items-center gap-1" data-testid={`text-subscriber-email-${i}`}>
+                            <span className="text-xs text-foreground">{l.email}</span>
+                            <CopyBtn text={l.email} />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50 italic">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -396,6 +443,19 @@ function LicensesTab({ pw }: { pw: string }) {
                           <span className="text-xs text-muted-foreground">{fmtDate(l.expiresAt)}</span>
                         )}
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap" data-testid={`status-reminder-${i}`}>
+                        {!l.email ? (
+                          <span className="text-[10px] text-muted-foreground/40 italic">no email</span>
+                        ) : l.reminderSent ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+                            <CheckCircle2 className="w-3 h-3" /> Sent
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                            Pending
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(l.issuedAt)}</td>
                       <td className="px-4 py-3">
                         <button
@@ -403,6 +463,7 @@ function LicensesTab({ pw }: { pw: string }) {
                           disabled={revoking === l.licenseKey}
                           className="text-xs text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
                           title="Revoke key"
+                          data-testid={`button-revoke-${i}`}
                         >
                           {revoking === l.licenseKey ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "✕"}
                         </button>
