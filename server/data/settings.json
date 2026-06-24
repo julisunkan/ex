@@ -8,9 +8,14 @@
   },
   "payment": {
     "walletAddress": "",
-    "network": "tron",
-    "price": 5
+    "network": "tron"
   },
+  "plans": [
+    { "id": "monthly",   "label": "Monthly",  "price": 5,  "days": 30  },
+    { "id": "quarterly", "label": "3-Month",  "price": 12, "days": 90  },
+    { "id": "biannual",  "label": "6-Month",  "price": 20, "days": 180 },
+    { "id": "annual",    "label": "1-Year",   "price": 35, "days": 365 }
+  ],
   "features": {
     "proEnabled": true
   }

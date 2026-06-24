@@ -2,6 +2,13 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
+export interface Plan {
+  id: string;
+  label: string;
+  price: number;
+  days: number;
+}
+
 export interface AppConfig {
   appearance: {
     name: string;
@@ -11,8 +18,16 @@ export interface AppConfig {
     radius: string;
   };
   features: { proEnabled: boolean };
-  payment: { price: number; network: string };
+  payment: { network: string };
+  plans: Plan[];
 }
+
+const DEFAULT_PLANS: Plan[] = [
+  { id: "monthly",   label: "Monthly",  price: 5,  days: 30  },
+  { id: "quarterly", label: "3-Month",  price: 12, days: 90  },
+  { id: "biannual",  label: "6-Month",  price: 20, days: 180 },
+  { id: "annual",    label: "1-Year",   price: 35, days: 365 },
+];
 
 const DEFAULT_CONFIG: AppConfig = {
   appearance: {
@@ -23,7 +38,8 @@ const DEFAULT_CONFIG: AppConfig = {
     radius: "6px",
   },
   features: { proEnabled: true },
-  payment: { price: 5, network: "tron" },
+  payment: { network: "tron" },
+  plans: DEFAULT_PLANS,
 };
 
 function hexToHsl(hex: string): string {
@@ -68,8 +84,9 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
         if (!data) return;
         const merged: AppConfig = {
           appearance: { ...DEFAULT_CONFIG.appearance, ...data.appearance },
-          features: { ...DEFAULT_CONFIG.features, ...data.features },
-          payment: { ...DEFAULT_CONFIG.payment, ...data.payment },
+          features:   { ...DEFAULT_CONFIG.features,   ...data.features   },
+          payment:    { ...DEFAULT_CONFIG.payment,    ...data.payment    },
+          plans:      Array.isArray(data.plans) && data.plans.length ? data.plans : DEFAULT_PLANS,
         };
         setConfig(merged);
         applyTheme(merged);

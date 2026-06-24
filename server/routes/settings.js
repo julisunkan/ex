@@ -9,21 +9,39 @@ const LICENSES_FILE = join(__dirname, "../data/licenses.json");
 
 const router = Router();
 
+const DEFAULT_PLANS = [
+  { id: "monthly",   label: "Monthly",  price: 5,  days: 30  },
+  { id: "quarterly", label: "3-Month",  price: 12, days: 90  },
+  { id: "biannual",  label: "6-Month",  price: 20, days: 180 },
+  { id: "annual",    label: "1-Year",   price: 35, days: 365 },
+];
+
+const DEFAULT_SETTINGS = {
+  appearance: {
+    name: "Bank Statement Analyzer",
+    tagline: "Analyze transactions, categorize spending, and export summary reports.",
+    primaryColor: "#3b82f6",
+    accentColor: "#16a34a",
+    radius: "6px",
+  },
+  payment: { walletAddress: "", network: "tron" },
+  plans: DEFAULT_PLANS,
+  features: { proEnabled: true },
+};
+
 function loadSettings() {
   try {
-    return JSON.parse(readFileSync(SETTINGS_FILE, "utf8"));
-  } catch {
+    const raw = JSON.parse(readFileSync(SETTINGS_FILE, "utf8"));
     return {
-      appearance: {
-        name: "Bank Statement Analyzer",
-        tagline: "Analyze transactions, categorize spending, and export summary reports.",
-        primaryColor: "#3b82f6",
-        accentColor: "#16a34a",
-        radius: "6px",
-      },
-      payment: { walletAddress: "", network: "tron", price: 5 },
-      features: { proEnabled: true },
+      ...DEFAULT_SETTINGS,
+      ...raw,
+      appearance: { ...DEFAULT_SETTINGS.appearance, ...(raw.appearance || {}) },
+      payment:    { ...DEFAULT_SETTINGS.payment,    ...(raw.payment    || {}) },
+      plans: Array.isArray(raw.plans) && raw.plans.length === 4 ? raw.plans : DEFAULT_PLANS,
+      features:   { ...DEFAULT_SETTINGS.features,   ...(raw.features   || {}) },
     };
+  } catch {
+    return DEFAULT_SETTINGS;
   }
 }
 
@@ -48,16 +66,14 @@ function requireAdmin(req, res, next) {
 
 // ── Public ────────────────────────────────────────────────────────────────────
 
-// GET /api/config  (no auth — used by frontend on every load)
+// GET /api/config  (no auth — frontend loads this on startup)
 router.get("/", (req, res) => {
   const s = loadSettings();
   res.json({
     appearance: s.appearance,
-    features: s.features,
-    payment: {
-      price: s.payment.price,
-      network: s.payment.network,
-    },
+    features:   s.features,
+    payment:    { network: s.payment.network },
+    plans:      s.plans,
   });
 });
 
@@ -76,10 +92,10 @@ router.put("/settings", requireAdmin, (req, res) => {
   const merged = {
     appearance: { ...current.appearance, ...(patch.appearance || {}) },
     payment:    { ...current.payment,    ...(patch.payment    || {}) },
-    features:   { ...current.features,  ...(patch.features   || {}) },
+    plans:      Array.isArray(patch.plans) ? patch.plans : current.plans,
+    features:   { ...current.features,   ...(patch.features   || {}) },
   };
 
-  // If walletAddress is being cleared to empty, fall back to env var
   if (!merged.payment.walletAddress) {
     merged.payment.walletAddress = process.env.USDT_WALLET_ADDRESS || "";
   }
