@@ -253,8 +253,14 @@ export async function createSummarySheet(summary: Summary, context: Excel.Reques
     data.push([tx.date, tx.description, tx.amount, tx.type.toUpperCase(), tx.category.name]);
   }
 
-  const range = summarySheet.getRange(`A1:E${data.length}`);
-  range.values = data as Excel.RangeValueType[][];
+  // Normalize every row to exactly 5 columns so the range dimensions match
+  const normalizedData = data.map((row) => {
+    const r = [...row] as (string | number)[];
+    while (r.length < 5) r.push("");
+    return r.slice(0, 5);
+  });
+  const range = summarySheet.getRange(`A1:E${normalizedData.length}`);
+  range.values = normalizedData as Excel.RangeValueType[][];
 
   // Style header
   const titleCell = summarySheet.getRange("A1");

@@ -69,7 +69,16 @@ export function parsePastedText(raw: string): ParsedCsv | null {
 
   if (dataRows.length === 0) return null;
 
-  return { headers, rows: dataRows, rawCount: dataRows.length };
+  // Normalize every row to exactly the same width as the header.
+  // Rows that are shorter get padded; rows that are wider get truncated.
+  const colCount = headers.length;
+  const normalizedRows = dataRows.map((row) => {
+    const r = [...row];
+    while (r.length < colCount) r.push("");
+    return r.slice(0, colCount);
+  });
+
+  return { headers, rows: normalizedRows, rawCount: normalizedRows.length };
 }
 
 /**
@@ -92,8 +101,14 @@ export async function writeToExcelSheet(
   const sheet = context.workbook.worksheets.add(sheetName);
   sheet.activate();
 
-  const allData = [parsed.headers, ...parsed.rows];
-  const range = sheet.getRange(`A1:${colLetter(parsed.headers.length)}${allData.length}`);
+  const colCount = parsed.headers.length;
+  // Ensure every row (including header) is exactly colCount wide
+  const allData = [parsed.headers, ...parsed.rows].map((row) => {
+    const r = [...row];
+    while (r.length < colCount) r.push("");
+    return r.slice(0, colCount);
+  });
+  const range = sheet.getRange(`A1:${colLetter(colCount)}${allData.length}`);
   range.values = allData as Excel.RangeValueType[][];
 
   // Bold + fill the header row
