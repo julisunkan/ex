@@ -98,11 +98,18 @@ export async function highlightTransactions(
 ): Promise<void> {
   const ctx = sheet.context as Excel.RequestContext;
 
+  // Load used range so we know how many columns to color per row
+  const usedRange = sheet.getUsedRange();
+  usedRange.load("columnCount");
+  await ctx.sync();
+
+  const colCount = Math.max(usedRange.columnCount, 1);
+
   for (const tx of transactions) {
-    const colLetter = String.fromCharCode(65 + columnMap.description);
-    const cell = sheet.getRange(`${colLetter}${tx.row}`);
-    cell.format.fill.color = tint(tx.category.color, 0.25);
-    cell.format.font.color = "#1e293b";
+    // Highlight the entire row (0-indexed row = tx.row - 1)
+    const rowRange = sheet.getRangeByIndexes(tx.row - 1, 0, 1, colCount);
+    rowRange.format.fill.color = tint(tx.category.color, 0.25);
+    rowRange.format.font.color = "#1e293b";
   }
 
   await ctx.sync();
