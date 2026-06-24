@@ -11,6 +11,7 @@ import { buildSummary, type Summary, type Transaction } from "./lib/categorizer"
 import { parsePastedText, writeToExcelSheet } from "./lib/csv-parser";
 import { getLicense, checkLicenseValid } from "./lib/payment";
 import PaymentGate from "./components/PaymentGate";
+import SubscriptionDashboard from "./components/SubscriptionDashboard";
 import { useAppConfig } from "./context/AppConfigContext";
 import iconLogo from "@assets/icons/icon-logo.png";
 import iconAnalyze from "@assets/icons/icon-analyze.png";
@@ -26,7 +27,7 @@ import iconPro from "@assets/icons/icon-pro.png";
 declare const Excel: typeof import("@microsoft/office-js").Excel;
 declare const Office: typeof import("@microsoft/office-js");
 
-type Step = "idle" | "paste" | "importing" | "loading" | "results" | "error";
+type Step = "idle" | "paste" | "importing" | "loading" | "results" | "error" | "subscription";
 
 const isOfficeAvailable = () =>
   typeof Office !== "undefined" && typeof Excel !== "undefined";
@@ -83,6 +84,7 @@ export default function App() {
   const [showPayment, setShowPayment] = useState(false);
   const [paymentMode, setPaymentMode] = useState<"pay" | "key">("pay");
   const [pendingAction, setPendingAction] = useState<"highlight" | "export" | null>(null);
+  const lowestPlanPrice = config.plans.length > 0 ? Math.min(...config.plans.map((p) => p.price)) : 5;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -183,6 +185,8 @@ export default function App() {
     setCsvText(""); setCsvError("");
   };
 
+  const openSubscription = () => setStep("subscription");
+
   const topCategories = summary
     ? Object.entries(summary.byCategory).sort((a, b) => b[1].total - a[1].total)
     : [];
@@ -210,11 +214,14 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isPro && (
-            <span className="flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 tracking-wide">
+            <button
+              onClick={openSubscription}
+              className="flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 tracking-wide hover:bg-amber-200 transition-colors"
+            >
               <img src={iconPro} alt="Pro" className="w-3.5 h-3.5 object-contain" /> PRO
-            </span>
+            </button>
           )}
-          {(step === "results" || step === "error" || step === "paste") && (
+          {(step === "results" || step === "error" || step === "paste" || step === "subscription") && (
             <button onClick={reset}
               className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -285,7 +292,7 @@ export default function App() {
                   <p className="text-sm font-bold text-amber-800">Free vs Pro</p>
                   <button onClick={() => { setPaymentMode("pay"); setShowPayment(true); }}
                     className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1 rounded-lg transition-colors shadow-sm">
-                    Unlock $5 USDT
+                    From ${lowestPlanPrice} USDT
                   </button>
                 </div>
                 <div className="p-3 space-y-2 bg-white">
@@ -436,7 +443,7 @@ export default function App() {
               <button onClick={() => setShowPayment(true)}
                 className="mx-4 mb-3 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl px-4 py-3 hover:border-amber-400 transition-all group">
                 <div className="text-left">
-                  <p className="text-sm font-bold text-amber-800">Unlock Premium — $5 USDT</p>
+                  <p className="text-sm font-bold text-amber-800">Unlock Premium — from ${lowestPlanPrice} USDT</p>
                   <p className="text-xs text-amber-600 mt-0.5">Highlight cells · Export report sheet</p>
                 </div>
                 <svg className="w-5 h-5 text-amber-500 shrink-0 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -533,6 +540,22 @@ export default function App() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── SUBSCRIPTION DASHBOARD ── */}
+        {step === "subscription" && (
+          <div className="flex flex-col h-full">
+            <div className="px-4 pt-4 pb-2 border-b border-border shrink-0">
+              <h2 className="text-base font-bold text-foreground">My Subscription</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Manage your Pro plan and license</p>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <SubscriptionDashboard
+                onStatusChange={(pro) => setIsPro(pro)}
+                onUpgrade={() => { setPaymentMode("pay"); setShowPayment(true); }}
+              />
             </div>
           </div>
         )}

@@ -13,9 +13,17 @@ const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface License { licenseKey: string; txHash: string; issuedAt: string; note?: string; expiresAt?: string; }
+interface Plan {
+  id: string;
+  label: string;
+  price: number;
+  days: number;
+}
+
 interface Settings {
   appearance: { name: string; tagline: string; primaryColor: string; accentColor: string; radius: string; };
-  payment: { walletAddress: string; network: string; price: number; };
+  payment: { walletAddress: string; network: string; };
+  plans: Plan[];
   features: { proEnabled: boolean; };
 }
 
@@ -407,18 +415,33 @@ function LicensesTab({ pw }: { pw: string }) {
 }
 
 // ── Payment tab ───────────────────────────────────────────────────────────────
+const DEFAULT_PLANS: Plan[] = [
+  { id: "monthly",   label: "Monthly",  price: 5,  days: 30  },
+  { id: "quarterly", label: "3-Month",  price: 12, days: 90  },
+  { id: "biannual",  label: "6-Month",  price: 20, days: 180 },
+  { id: "annual",    label: "1-Year",   price: 35, days: 365 },
+];
+
 function PaymentTab({ pw, settings, onSaved }: { pw: string; settings: Settings; onSaved: (s: Settings) => void }) {
   const [form, setForm] = useState(settings.payment);
+  const [plans, setPlans] = useState<Plan[]>(settings.plans?.length ? settings.plans : DEFAULT_PLANS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => { setForm(settings.payment); }, [settings]);
+  useEffect(() => {
+    setForm(settings.payment);
+    setPlans(settings.plans?.length ? settings.plans : DEFAULT_PLANS);
+  }, [settings]);
+
+  function updatePlanPrice(id: string, price: number) {
+    setPlans((prev) => prev.map((p) => p.id === id ? { ...p, price } : p));
+  }
 
   async function save() {
     setSaving(true);
     const res = await fetch(`${API_BASE}/api/admin/settings`, {
       method: "PUT", headers: { "Content-Type": "application/json", "x-admin-password": pw },
-      body: JSON.stringify({ payment: form }),
+      body: JSON.stringify({ payment: form, plans }),
     });
     setSaving(false);
     if (res.ok) {
@@ -430,40 +453,72 @@ function PaymentTab({ pw, settings, onSaved }: { pw: string; settings: Settings;
   }
 
   return (
-    <Card>
-      <CardHeader><CardTitle className="text-base">Payment Settings</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <label className="text-sm font-medium mb-1.5 block">USDT Wallet Address</label>
-          <Input value={form.walletAddress} onChange={e => setForm(f => ({ ...f, walletAddress: e.target.value }))}
-            placeholder="Your USDT wallet address" className="font-mono text-sm" />
-          <p className="text-xs text-muted-foreground mt-1">Customers will send USDT to this address.</p>
-        </div>
-        <div>
-          <label className="text-sm font-medium mb-1.5 block">Network</label>
-          <select value={form.network} onChange={e => setForm(f => ({ ...f, network: e.target.value }))}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-            <option value="tron">Tron (TRC-20) — Recommended, ~$0 fees</option>
-            <option value="bsc">BNB Smart Chain (BEP-20) — Low fees</option>
-            <option value="eth">Ethereum (ERC-20) — Higher fees</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-sm font-medium mb-1.5 block">Price (USDT)</label>
-          <Input type="number" min="1" step="0.5" value={form.price}
-            onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} className="w-32" />
-        </div>
-        <div className="pt-2 border-t">
-          <p className="text-xs font-medium text-muted-foreground mb-2">API Keys (optional — for higher rate limits)</p>
-          <div className="space-y-2 text-xs text-muted-foreground bg-muted rounded-md p-3">
-            <p>Add <code className="bg-background rounded px-1">TRONGRID_API_KEY</code>, <code className="bg-background rounded px-1">BSCSCAN_API_KEY</code>, or <code className="bg-background rounded px-1">ETHERSCAN_API_KEY</code> as Replit Secrets for higher blockchain API rate limits.</p>
+    <div className="space-y-4">
+      {/* Wallet & network */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Wallet & Network</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">USDT Wallet Address</label>
+            <Input value={form.walletAddress} onChange={e => setForm(f => ({ ...f, walletAddress: e.target.value }))}
+              placeholder="Your USDT wallet address" className="font-mono text-sm" />
+            <p className="text-xs text-muted-foreground mt-1">Customers will send USDT to this address.</p>
           </div>
-        </div>
-        <Button onClick={save} disabled={saving} className="gap-2">
-          {saved ? <><Check className="w-4 h-4" /> Saved!</> : saving ? "Saving…" : <><Save className="w-4 h-4" /> Save Payment Settings</>}
-        </Button>
-      </CardContent>
-    </Card>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Network</label>
+            <select value={form.network} onChange={e => setForm(f => ({ ...f, network: e.target.value }))}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <option value="tron">Tron (TRC-20) — Recommended, ~$0 fees</option>
+              <option value="bsc">BNB Smart Chain (BEP-20) — Low fees</option>
+              <option value="eth">Ethereum (ERC-20) — Higher fees</option>
+            </select>
+          </div>
+          <div className="pt-2 border-t">
+            <p className="text-xs font-medium text-muted-foreground mb-2">API Keys (optional — for higher rate limits)</p>
+            <div className="space-y-2 text-xs text-muted-foreground bg-muted rounded-md p-3">
+              <p>Add <code className="bg-background rounded px-1">TRONGRID_API_KEY</code>, <code className="bg-background rounded px-1">BSCSCAN_API_KEY</code>, or <code className="bg-background rounded px-1">ETHERSCAN_API_KEY</code> as Replit Secrets for higher blockchain API rate limits.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Subscription plans */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Subscription Plans</CardTitle>
+          <p className="text-sm text-muted-foreground">Set the price for each plan period. Users choose one before paying.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {plans.map((plan) => (
+              <div key={plan.id} className="flex items-center gap-3 border border-border rounded-xl px-4 py-3 bg-muted/20">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{plan.label}</p>
+                  <p className="text-xs text-muted-foreground">{plan.days} days access</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-xs text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="0.5"
+                    value={plan.price}
+                    onChange={e => updatePlanPrice(plan.id, Number(e.target.value))}
+                    className="w-20 text-right font-mono font-semibold"
+                  />
+                  <span className="text-xs text-muted-foreground">USDT</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Tip: Use tiered pricing (e.g. $5 → $12 → $20 → $35) to encourage longer commitments.</p>
+        </CardContent>
+      </Card>
+
+      <Button onClick={save} disabled={saving} className="gap-2">
+        {saved ? <><Check className="w-4 h-4" /> Saved!</> : saving ? "Saving…" : <><Save className="w-4 h-4" /> Save Payment Settings</>}
+      </Button>
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchPaymentConfig, verifyPayment, setLicense, activateLicenseKey } from "../lib/payment";
+import { useAppConfig } from "../context/AppConfigContext";
 import iconHighlight from "@assets/icons/icon-highlight.png";
 import iconExport from "@assets/icons/icon-export.png";
 
@@ -13,13 +14,15 @@ type PayMode = "pay" | "key";
 type PayStep = "info" | "verifying" | "error" | "success";
 
 export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay" }: Props) {
+  const config = useAppConfig();
+  const plans = config.plans;
+
   const [mode, setMode] = useState<PayMode>(initialMode);
 
   // ── Pay mode state ──────────────────────────────────────────────────────────
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(() => plans[0]?.id ?? "monthly");
   const [wallet, setWallet] = useState<string>("");
-  const [price, setPrice] = useState<number>(5);
-  const [network, setNetwork] = useState<string>("TRC-20 (Tron)");
-  const [planId, setPlanId] = useState<string>("monthly");
+  const [networkLabel, setNetworkLabel] = useState<string>("TRC-20 (Tron)");
   const [txHash, setTxHash] = useState("");
   const [payStep, setPayStep] = useState<PayStep>("info");
   const [payError, setPayError] = useState("");
@@ -37,16 +40,26 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
     fetchPaymentConfig().then((cfg) => {
       if (cfg) {
         setWallet(cfg.address);
-        const defaultPlan = cfg.plans?.[0];
-        if (defaultPlan) {
-          setPrice(defaultPlan.price);
-          setPlanId(defaultPlan.id);
-        }
-        const networkLabel = cfg.network === "tron" ? "TRC-20 (Tron)" : cfg.network === "bsc" ? "BEP-20 (BSC)" : cfg.network === "eth" ? "ERC-20 (ETH)" : cfg.network;
-        setNetwork(networkLabel);
+        const label = cfg.network === "tron"
+          ? "TRC-20 (Tron)"
+          : cfg.network === "bsc"
+          ? "BEP-20 (BSC)"
+          : cfg.network === "eth"
+          ? "ERC-20 (ETH)"
+          : cfg.network;
+        setNetworkLabel(label);
       }
     });
   }, []);
+
+  // Keep selectedPlanId in sync when plans load
+  useEffect(() => {
+    if (plans.length > 0 && !plans.find((p) => p.id === selectedPlanId)) {
+      setSelectedPlanId(plans[0].id);
+    }
+  }, [plans, selectedPlanId]);
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? plans[0];
 
   const copyWallet = useCallback(() => {
     navigator.clipboard.writeText(wallet).catch(() => {});
@@ -65,7 +78,7 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
     if (!hash) { setPayError("Please paste your transaction hash."); return; }
     setPayStep("verifying");
     setPayError("");
-    const result = await verifyPayment(hash, planId);
+    const result = await verifyPayment(hash, selectedPlan?.id ?? "monthly");
     if (result.success && result.licenseKey) {
       setGeneratedKey(result.licenseKey);
       setLicense(result.licenseKey);
@@ -75,7 +88,7 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
       setPayError(result.error ?? "Verification failed.");
       setPayStep("error");
     }
-  }, [txHash, onUnlocked]);
+  }, [txHash, selectedPlan, onUnlocked]);
 
   const handleActivateKey = useCallback(async () => {
     setKeyActivating(true);
@@ -98,7 +111,7 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
         <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 flex items-center justify-between">
           <div>
             <p className="text-white font-semibold text-sm">Unlock Premium Features</p>
-            <p className="text-blue-100 text-[10px]">One-time payment · No subscription</p>
+            <p className="text-blue-100 text-[10px]">Choose a plan · Cancel anytime</p>
           </div>
           <button onClick={onDismiss} className="text-white/70 hover:text-white transition-colors p-1">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -142,12 +155,6 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
                 ))}
               </div>
 
-              {/* Price badge */}
-              <div className="flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-lg py-2.5">
-                <span className="text-lg font-bold text-green-700">${price} USDT</span>
-                <span className="text-[10px] text-green-600 bg-green-100 px-1.5 py-0.5 rounded font-medium">{network}</span>
-              </div>
-
               {payStep === "success" ? (
                 <div className="flex flex-col items-center gap-3 py-3">
                   <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
@@ -157,7 +164,6 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
                   </div>
                   <p className="text-sm font-bold text-green-700">Payment Verified!</p>
 
-                  {/* Show generated license key */}
                   {generatedKey && (
                     <div className="w-full bg-amber-50 border border-amber-200 rounded-xl p-3">
                       <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
@@ -179,11 +185,49 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
                 </div>
               ) : (
                 <>
-                  {/* Step 1 */}
+                  {/* Plan selector */}
+                  {plans.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-semibold text-foreground mb-2">Choose a plan</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {plans.map((plan) => {
+                          const isSelected = selectedPlanId === plan.id;
+                          return (
+                            <button
+                              key={plan.id}
+                              onClick={() => setSelectedPlanId(plan.id)}
+                              className={`relative rounded-xl border-2 p-2.5 text-left transition-all ${
+                                isSelected
+                                  ? "border-blue-500 bg-blue-50"
+                                  : "border-border bg-white hover:border-blue-200"
+                              }`}
+                            >
+                              {plan.id === "annual" && (
+                                <span className="absolute -top-2 right-2 text-[9px] font-bold bg-green-500 text-white px-1.5 py-0.5 rounded-full">BEST VALUE</span>
+                              )}
+                              {plan.id === "quarterly" && (
+                                <span className="absolute -top-2 right-2 text-[9px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full">POPULAR</span>
+                              )}
+                              <p className={`text-xs font-bold ${isSelected ? "text-blue-700" : "text-foreground"}`}>{plan.label}</p>
+                              <p className={`text-base font-extrabold mt-0.5 ${isSelected ? "text-blue-600" : "text-foreground"}`}>${plan.price} <span className="text-[10px] font-medium text-muted-foreground">USDT</span></p>
+                              <p className="text-[10px] text-muted-foreground">{plan.days} days access</p>
+                              {isSelected && (
+                                <div className="absolute top-2 right-2 w-3.5 h-3.5 rounded-full bg-blue-500 flex items-center justify-center">
+                                  <svg className="w-2 h-2 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 1 — Send USDT */}
                   <div>
                     <p className="text-[11px] font-semibold text-foreground mb-1.5 flex items-center gap-1.5">
                       <span className="w-4 h-4 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold shrink-0">1</span>
-                      Send exactly ${price} USDT to this wallet
+                      Send exactly ${selectedPlan?.price ?? "—"} USDT to this wallet
                     </p>
                     <div className="flex items-center gap-2 bg-muted rounded-lg p-2 border border-border">
                       <p className="flex-1 text-[10px] font-mono text-foreground break-all leading-relaxed">
@@ -197,11 +241,11 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
                       )}
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Network: <span className="font-medium text-foreground">{network}</span> · Use your crypto wallet or exchange
+                      Network: <span className="font-medium text-foreground">{networkLabel}</span> · Use your crypto wallet or exchange
                     </p>
                   </div>
 
-                  {/* Step 2 */}
+                  {/* Step 2 — Paste tx hash */}
                   <div>
                     <p className="text-[11px] font-semibold text-foreground mb-1.5 flex items-center gap-1.5">
                       <span className="w-4 h-4 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold shrink-0">2</span>
@@ -229,7 +273,7 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
                         <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         Verifying on blockchain…
                       </>
-                    ) : "Verify Payment & Unlock"}
+                    ) : `Verify Payment & Unlock (${selectedPlan ? `$${selectedPlan.price} USDT` : "—"})`}
                   </button>
 
                   <p className="text-[10px] text-center text-muted-foreground">
