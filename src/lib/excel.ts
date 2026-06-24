@@ -5,8 +5,13 @@ declare const Office: typeof import("@microsoft/office-js");
 export type ColumnMap = {
   date: number;
   description: number;
-  amount: number;
+  // Single-column format (amount + optional type)
+  amount: number | null;
   type: number | null;
+  // Split-column format (separate debit / credit / balance)
+  debit: number | null;
+  credit: number | null;
+  balance: number | null;
 };
 
 export function fmt(n: number, symbol = "₦"): string {
@@ -22,7 +27,7 @@ export function fmtShort(n: number, symbol = "₦"): string {
 }
 
 export async function detectColumns(sheet: Excel.Worksheet): Promise<ColumnMap | null> {
-  const headerRange = sheet.getRange("A1:J1");
+  const headerRange = sheet.getRange("A1:L1");
   headerRange.load("values");
   await (sheet.context as Excel.RequestContext).sync();
 
@@ -31,16 +36,38 @@ export async function detectColumns(sheet: Excel.Worksheet): Promise<ColumnMap |
   );
 
   const find = (...terms: string[]) =>
-    headers.findIndex((h) => terms.some((t) => h.includes(t)));
+    headers.findIndex((h) => terms.some((t) => h === t || h.includes(t)));
 
-  const date = find("date", "tran date", "value date");
-  const description = find("description", "narration", "details", "particulars", "memo", "remark");
-  const amount = find("amount", "debit", "credit", "value");
-  const type = find("type", "dr/cr", "debit/credit", "transaction type");
+  const date        = find("date", "tran date", "value date", "trans date");
+  const description = find("description", "narration", "details", "particulars", "memo", "remark", "transaction");
 
-  if (date === -1 || description === -1 || amount === -1) return null;
+  if (date === -1 || description === -1) return null;
 
-  return { date, description, amount, type: type === -1 ? null : type };
+  // ── Split-column format: separate Debit / Credit columns ──────────────────
+  const debit  = find("debit");
+  const credit = find("credit");
+
+  if (debit !== -1 && credit !== -1) {
+    const balance = find("balance", "running balance", "bal");
+    return {
+      date, description,
+      amount: null, type: null,
+      debit, credit,
+      balance: balance === -1 ? null : balance,
+    };
+  }
+
+  // ── Single-column format: one Amount column ───────────────────────────────
+  const amount = find("amount", "value");
+  const type   = find("type", "dr/cr", "debit/credit", "transaction type", "cr/dr");
+
+  if (amount === -1) return null;
+
+  return {
+    date, description,
+    amount, type: type === -1 ? null : type,
+    debit: null, credit: null, balance: null,
+  };
 }
 
 export async function readTransactions(
@@ -54,26 +81,54 @@ export async function readTransactions(
   const rows = usedRange.values as (string | number | boolean)[][];
   const transactions: Transaction[] = [];
 
+  const isSplitFormat = columnMap.debit !== null && columnMap.credit !== null;
+
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     const rawDate = row[columnMap.date];
     const rawDesc = row[columnMap.description];
-    const rawAmount = row[columnMap.amount];
 
-    if (!rawDesc || rawAmount === "" || rawAmount === null) continue;
-
-    const amount = Math.abs(Number(rawAmount));
-    if (isNaN(amount) || amount === 0) continue;
+    if (!rawDesc) continue;
 
     const date = rawDate ? String(rawDate) : "";
     const description = String(rawDesc || "");
 
+    let amount = 0;
     let type: "credit" | "debit" = "debit";
-    if (columnMap.type !== null) {
-      const rawType = String(row[columnMap.type] || "").toLowerCase();
-      if (rawType.includes("cr") || rawType.includes("credit")) type = "credit";
+
+    if (isSplitFormat) {
+      // ── Split Debit / Credit format ────────────────────────────────────────
+      const rawDebit  = columnMap.debit  !== null ? row[columnMap.debit]  : "";
+      const rawCredit = columnMap.credit !== null ? row[columnMap.credit] : "";
+
+      const debitVal  = rawDebit  !== "" && rawDebit  !== null ? Math.abs(Number(rawDebit))  : 0;
+      const creditVal = rawCredit !== "" && rawCredit !== null ? Math.abs(Number(rawCredit)) : 0;
+
+      if (isNaN(debitVal) && isNaN(creditVal)) continue;
+
+      if (creditVal > 0) {
+        amount = creditVal;
+        type = "credit";
+      } else if (debitVal > 0) {
+        amount = debitVal;
+        type = "debit";
+      } else {
+        continue; // both zero — skip (e.g. opening balance header rows)
+      }
     } else {
-      type = Number(rawAmount) > 0 ? "credit" : "debit";
+      // ── Single Amount column format ────────────────────────────────────────
+      const rawAmount = columnMap.amount !== null ? row[columnMap.amount] : null;
+      if (rawAmount === "" || rawAmount === null || rawAmount === undefined) continue;
+
+      amount = Math.abs(Number(rawAmount));
+      if (isNaN(amount) || amount === 0) continue;
+
+      if (columnMap.type !== null) {
+        const rawType = String(row[columnMap.type] || "").toLowerCase();
+        type = rawType.includes("cr") || rawType.includes("credit") ? "credit" : "debit";
+      } else {
+        type = Number(rawAmount) > 0 ? "credit" : "debit";
+      }
     }
 
     const category = categorize(description, amount, type);

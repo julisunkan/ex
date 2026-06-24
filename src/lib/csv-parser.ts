@@ -32,7 +32,7 @@ export function parsePastedText(raw: string): ParsedCsv | null {
 
   const allRows = lines.map(splitLine);
 
-  // Find the header row: look for a row that contains "date", "description", or "amount"
+  // Find the header row: look for a row that contains common column keywords
   let headerIdx = 0;
   for (let i = 0; i < Math.min(allRows.length, 8); i++) {
     const joined = allRows[i].join(" ").toLowerCase();
@@ -40,7 +40,9 @@ export function parsePastedText(raw: string): ParsedCsv | null {
       joined.includes("date") ||
       joined.includes("description") ||
       joined.includes("narration") ||
-      joined.includes("amount")
+      joined.includes("amount") ||
+      joined.includes("debit") ||
+      joined.includes("credit")
     ) {
       headerIdx = i;
       break;

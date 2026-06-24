@@ -184,7 +184,7 @@ export default function App() {
         sheet.load("name");
         await ctx.sync();
         const columnMap: ColumnMap | null = await detectColumns(sheet);
-        if (!columnMap) throw new Error("Could not find required columns (Date, Description, Amount) in row 1.\nMake sure the active sheet has column headers.");
+        if (!columnMap) throw new Error("Could not find required columns in row 1.\n\nSupported formats:\n• Date, Description, Amount\n• Date, Description, Debit, Credit (with optional Balance)\n\nMake sure your sheet has a header row with these column names.");
         return await readTransactions(sheet, columnMap);
       });
       if (txns.length === 0) throw new Error("No transactions found. Check that the sheet has data rows below the header.");
@@ -685,7 +685,7 @@ export default function App() {
               ref={textareaRef}
               value={csvText}
               onChange={(e) => { setCsvText(e.target.value); setCsvError(""); }}
-              placeholder={"Date,Description,Amount,Type\n01/06/2026,SALARY JUNE,650000,CR\n02/06/2026,SHOPRITE,-45000,DR\n..."}
+              placeholder={"Format 1 — Debit/Credit columns (recommended):\nDate,Description,Category,Debit,Credit,Balance\n6/1/2026,Opening Balance,,,10000,10000\n6/2/2026,Payroll,Income,,4500,14500\n6/2/2026,Starbucks,Dining,6.75,,14493.25\n\nFormat 2 — Single Amount column:\nDate,Description,Amount,Type\n01/06/2026,SALARY JUNE,650000,CR\n02/06/2026,SHOPRITE,-45000,DR"}
               className="flex-1 w-full rounded-xl border-2 border-border bg-white p-3 text-sm font-mono resize-none focus:outline-none focus:border-primary placeholder:text-muted-foreground/40 transition-colors"
               spellCheck={false}
             />
