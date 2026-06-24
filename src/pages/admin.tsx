@@ -208,6 +208,29 @@ function LicensesTab({ pw }: { pw: string }) {
     load();
   }
 
+  function exportSubscribersCsv() {
+    if (!data || data.licenses.length === 0) return;
+    const header = ["License Key", "Plan", "Subscriber Email", "Issued At", "Expires At", "Reminder Sent", "Source / TX Hash", "Note"];
+    const rows = data.licenses.map(l => [
+      l.licenseKey,
+      l.planId ?? "",
+      l.email ?? "",
+      l.issuedAt ?? "",
+      l.expiresAt ?? "",
+      l.reminderSent ? "Yes" : "No",
+      l.txHash === "MANUAL" ? "Manual" : (l.txHash ?? ""),
+      l.note ?? "",
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    const csv = [header.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bsa-subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-4">
       {/* Generate key card */}
@@ -363,9 +386,16 @@ function LicensesTab({ pw }: { pw: string }) {
 
       <div className="flex items-center justify-between">
         <Badge variant="secondary">{data?.total ?? 0} licenses issued</Badge>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {data && data.licenses.length > 0 && (
+            <Button variant="outline" size="sm" onClick={exportSubscribersCsv} className="gap-1.5 text-green-700 border-green-300 hover:bg-green-50" data-testid="button-export-subscribers-csv">
+              <Download className="w-3.5 h-3.5" /> Export CSV
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+        </div>
       </div>
 
       <Card>
