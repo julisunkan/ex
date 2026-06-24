@@ -140,6 +140,7 @@ export default function App() {
   const [pdfEmailSending, setPdfEmailSending] = useState(false);
   const [pdfEmailSent, setPdfEmailSent] = useState(false);
   const [pdfEmailError, setPdfEmailError] = useState("");
+  const [actionError, setActionError] = useState("");
 
   const lowestPlanPrice = config.plans.length > 0 ? Math.min(...config.plans.map((p) => p.price)) : 5;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -216,25 +217,28 @@ export default function App() {
   const doHighlight = useCallback(async () => {
     if (!summary) return;
     setHighlighting(true);
+    setActionError("");
     try {
       await runExcel(async (ctx) => {
         const sheet = ctx.workbook.worksheets.getActiveWorksheet();
         const columnMap = await detectColumns(sheet);
         if (columnMap) await highlightTransactions(sheet, summary.transactions, columnMap);
+        else throw new Error("Could not detect columns on the active sheet.");
       });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
     } finally { setHighlighting(false); }
   }, [summary]);
 
   const doExport = useCallback(async () => {
     if (!summary) return;
     setExporting(true);
+    setActionError("");
     try {
       await runExcel(async (ctx) => { await createSummarySheet(summary, ctx); });
       setExportDone(true);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
     } finally { setExporting(false); }
   }, [summary]);
 
@@ -288,6 +292,7 @@ export default function App() {
     setCsvText(""); setCsvError("");
     setTxSearch(""); setTxCategoryFilter("All"); setTxTypeFilter("all");
     setBudgets({}); setShowDuplicates(false); setShowRecurring(false);
+    setActionError(""); setShowPdfDialog(false);
   };
 
   const openSubscription = () => setStep("subscription");
@@ -685,6 +690,21 @@ export default function App() {
                 {!isPro && <span className="text-[10px] opacity-60">🔒</span>}
               </ActionBtn>
             </div>
+
+            {/* Action error banner */}
+            {actionError && (
+              <div className="mx-4 mb-1 flex items-start gap-2 bg-destructive/10 border border-destructive/20 rounded-xl px-3 py-2.5 shrink-0">
+                <svg className="w-4 h-4 text-destructive shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <p className="text-xs text-destructive font-medium flex-1 leading-relaxed">{actionError}</p>
+                <button onClick={() => setActionError("")} className="text-destructive/60 hover:text-destructive shrink-0 transition-colors">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+            )}
 
             {/* Upsell banner */}
             {!isPro && (

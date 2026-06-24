@@ -81,6 +81,16 @@ export async function readTransactions(
   return transactions;
 }
 
+/** Blend a hex color with white at `opacity` (0–1) to produce a light tint.
+ *  Excel fill.color only accepts 6-digit RGB hex — no alpha channel. */
+function tint(hex: string, opacity: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const blend = (c: number) => Math.round(c * opacity + 255 * (1 - opacity));
+  return "#" + [r, g, b].map(blend).map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
 export async function highlightTransactions(
   sheet: Excel.Worksheet,
   transactions: Transaction[],
@@ -89,9 +99,9 @@ export async function highlightTransactions(
   const ctx = sheet.context as Excel.RequestContext;
 
   for (const tx of transactions) {
-    const cellAddress = `${String.fromCharCode(65 + columnMap.description)}${tx.row}`;
-    const cell = sheet.getRange(cellAddress);
-    cell.format.fill.color = tx.category.color + "33"; // 20% opacity hex
+    const colLetter = String.fromCharCode(65 + columnMap.description);
+    const cell = sheet.getRange(`${colLetter}${tx.row}`);
+    cell.format.fill.color = tint(tx.category.color, 0.25);
     cell.format.font.color = "#1e293b";
   }
 
