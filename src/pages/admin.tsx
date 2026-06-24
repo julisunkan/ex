@@ -12,7 +12,7 @@ import {
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface License { licenseKey: string; txHash: string; issuedAt: string; note?: string; }
+interface License { licenseKey: string; txHash: string; issuedAt: string; note?: string; expiresAt?: string; }
 interface Settings {
   appearance: { name: string; tagline: string; primaryColor: string; accentColor: string; radius: string; };
   payment: { walletAddress: string; network: string; price: number; };
@@ -94,14 +94,17 @@ function LicensesTab({ pw }: { pw: string }) {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genNote, setGenNote] = useState("");
+  const [genExpiry, setGenExpiry] = useState("0");
   const [newKey, setNewKey] = useState<string | null>(null);
   const [newKeyCopied, setNewKeyCopied] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   // Bulk generate state
   const [bulkCount, setBulkCount] = useState(5);
   const [bulkNote, setBulkNote] = useState("");
+  const [bulkExpiry, setBulkExpiry] = useState("0");
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [bulkKeys, setBulkKeys] = useState<string[]>([]);
+  const [bulkExpiresAt, setBulkExpiresAt] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -118,7 +121,10 @@ function LicensesTab({ pw }: { pw: string }) {
     const res = await fetch(`${API_BASE}/api/admin/licenses/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-password": pw },
-      body: JSON.stringify({ note: genNote || "Admin generated" }),
+      body: JSON.stringify({
+        note: genNote || "Admin generated",
+        expiryDays: parseInt(genExpiry) || 0,
+      }),
     });
     setGenerating(false);
     if (res.ok) {
@@ -139,15 +145,21 @@ function LicensesTab({ pw }: { pw: string }) {
   async function bulkGenerate() {
     setBulkGenerating(true);
     setBulkKeys([]);
+    setBulkExpiresAt(null);
     const res = await fetch(`${API_BASE}/api/admin/licenses/bulk-generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-password": pw },
-      body: JSON.stringify({ count: bulkCount, note: bulkNote || "Bulk generated" }),
+      body: JSON.stringify({
+        count: bulkCount,
+        note: bulkNote || "Bulk generated",
+        expiryDays: parseInt(bulkExpiry) || 0,
+      }),
     });
     setBulkGenerating(false);
     if (res.ok) {
-      const { keys } = await res.json();
+      const { keys, expiresAt } = await res.json();
       setBulkKeys(keys);
+      setBulkExpiresAt(expiresAt ?? null);
       load();
     }
   }
@@ -155,8 +167,9 @@ function LicensesTab({ pw }: { pw: string }) {
   function downloadCsv() {
     if (!bulkKeys.length) return;
     const note = bulkNote || "Bulk generated";
-    const header = "License Key,Note,Generated At";
-    const rows = bulkKeys.map(k => `${k},"${note}",${new Date().toISOString()}`);
+    const generatedAt = new Date().toISOString();
+    const header = "License Key,Note,Generated At,Expires At";
+    const rows = bulkKeys.map(k => `${k},"${note}",${generatedAt},${bulkExpiresAt ?? "Never"}`);
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -188,14 +201,25 @@ function LicensesTab({ pw }: { pw: string }) {
           <p className="text-sm text-muted-foreground">Create a key manually — useful for testing or granting access without payment.</p>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Input
               value={genNote}
               onChange={e => setGenNote(e.target.value)}
               placeholder="Note (optional, e.g. 'Test key')"
-              className="flex-1"
+              className="flex-1 min-w-[140px]"
               onKeyDown={e => e.key === "Enter" && generateKey()}
             />
+            <select
+              value={genExpiry}
+              onChange={e => setGenExpiry(e.target.value)}
+              className="rounded-md border border-input bg-background px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring shrink-0"
+            >
+              <option value="0">No expiry</option>
+              <option value="7">7 days</option>
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+              <option value="365">1 year</option>
+            </select>
             <Button onClick={generateKey} disabled={generating} className="gap-2 shrink-0">
               {generating
                 ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating…</>
@@ -206,6 +230,11 @@ function LicensesTab({ pw }: { pw: string }) {
           {newKey && (
             <div className="flex items-center gap-2 bg-white border border-blue-200 rounded-lg px-3 py-2.5">
               <code className="flex-1 text-sm font-mono font-bold text-foreground tracking-wider select-all">{newKey}</code>
+              {genExpiry !== "0" && (
+                <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 font-medium shrink-0">
+                  {genExpiry}d
+                </span>
+              )}
               <button onClick={copyNewKey}
                 className="shrink-0 flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors">
                 {newKeyCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
@@ -225,8 +254,8 @@ function LicensesTab({ pw }: { pw: string }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium shrink-0">Count</label>
+            <div className="flex items-center gap-2 shrink-0">
+              <label className="text-sm font-medium">Count</label>
               <Input
                 type="number" min={1} max={100}
                 value={bulkCount}
@@ -238,8 +267,19 @@ function LicensesTab({ pw }: { pw: string }) {
               value={bulkNote}
               onChange={e => setBulkNote(e.target.value)}
               placeholder="Note (optional, e.g. 'Beta batch')"
-              className="flex-1 min-w-[160px]"
+              className="flex-1 min-w-[140px]"
             />
+            <select
+              value={bulkExpiry}
+              onChange={e => setBulkExpiry(e.target.value)}
+              className="rounded-md border border-input bg-background px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring shrink-0"
+            >
+              <option value="0">No expiry</option>
+              <option value="7">7 days</option>
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+              <option value="365">1 year</option>
+            </select>
             <Button onClick={bulkGenerate} disabled={bulkGenerating} variant="outline" className="gap-2 border-purple-300 text-purple-700 hover:bg-purple-50 shrink-0">
               {bulkGenerating
                 ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating…</>
@@ -250,7 +290,12 @@ function LicensesTab({ pw }: { pw: string }) {
           {bulkKeys.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-green-700">✓ {bulkKeys.length} keys generated</p>
+                <div>
+                  <p className="text-sm font-medium text-green-700">✓ {bulkKeys.length} keys generated</p>
+                  {bulkExpiresAt && (
+                    <p className="text-xs text-amber-600 mt-0.5">Expires {fmtDate(bulkExpiresAt)}</p>
+                  )}
+                </div>
                 <Button onClick={downloadCsv} size="sm" className="gap-2 bg-purple-600 hover:bg-purple-700 text-white">
                   <Download className="w-3.5 h-3.5" /> Download CSV
                 </Button>
@@ -289,13 +334,19 @@ function LicensesTab({ pw }: { pw: string }) {
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground w-8">#</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">License Key</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Source / Note</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Expiry</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Issued At</th>
                     <th className="px-4 py-3 w-8" />
                   </tr>
                 </thead>
                 <tbody>
-                  {data.licenses.map((l, i) => (
-                    <tr key={l.licenseKey} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                  {data.licenses.map((l, i) => {
+                    const now = Date.now();
+                    const exp = l.expiresAt ? new Date(l.expiresAt).getTime() : null;
+                    const expired = exp !== null && exp < now;
+                    const expiringSoon = exp !== null && !expired && exp - now < 7 * 24 * 60 * 60 * 1000;
+                    return (
+                    <tr key={l.licenseKey} className={`border-b last:border-0 hover:bg-gray-50 transition-colors ${expired ? "opacity-60" : ""}`}>
                       <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
@@ -316,6 +367,21 @@ function LicensesTab({ pw }: { pw: string }) {
                           </div>
                         )}
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {!l.expiresAt ? (
+                          <span className="text-xs text-muted-foreground">Never</span>
+                        ) : expired ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                            Expired {fmtDate(l.expiresAt)}
+                          </span>
+                        ) : expiringSoon ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                            ⚠ {fmtDate(l.expiresAt)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{fmtDate(l.expiresAt)}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(l.issuedAt)}</td>
                       <td className="px-4 py-3">
                         <button
@@ -328,7 +394,8 @@ function LicensesTab({ pw }: { pw: string }) {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

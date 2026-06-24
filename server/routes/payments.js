@@ -224,8 +224,12 @@ router.post("/verify", async (req, res) => {
 router.get("/check/:key", (req, res) => {
   const { key } = req.params;
   const licenses = loadLicenses();
-  const valid = licenses.some((l) => l.licenseKey === key);
-  res.json({ valid });
+  const license = licenses.find((l) => l.licenseKey === key);
+  if (!license) return res.json({ valid: false, reason: "not_found" });
+  if (license.expiresAt && new Date(license.expiresAt) < new Date()) {
+    return res.json({ valid: false, reason: "expired", expiresAt: license.expiresAt });
+  }
+  res.json({ valid: true, expiresAt: license.expiresAt ?? null });
 });
 
 export default router;

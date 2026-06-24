@@ -48,26 +48,36 @@ router.get("/licenses", requireAdmin, (req, res) => {
   });
 });
 
+function computeExpiresAt(expiryDays) {
+  if (!expiryDays || expiryDays <= 0) return null;
+  const d = new Date();
+  d.setDate(d.getDate() + parseInt(expiryDays));
+  return d.toISOString();
+}
+
 // POST /api/admin/licenses/generate  — manually issue a license key
 router.post("/licenses/generate", requireAdmin, (req, res) => {
-  const { note } = req.body || {};
+  const { note, expiryDays } = req.body || {};
   const licenseKey = generateLicenseKey();
+  const expiresAt = computeExpiresAt(expiryDays);
   const licenses = loadLicenses();
   licenses.push({
     licenseKey,
     txHash: "MANUAL",
     note: (note || "Admin generated").slice(0, 100),
     issuedAt: new Date().toISOString(),
+    ...(expiresAt ? { expiresAt } : {}),
   });
   saveLicenses(licenses);
-  console.log(`🔑 Manual license issued: ${licenseKey}${note ? ` (${note})` : ""}`);
-  res.json({ licenseKey });
+  console.log(`🔑 Manual license issued: ${licenseKey}${note ? ` (${note})` : ""}${expiresAt ? ` expires ${expiresAt}` : ""}`);
+  res.json({ licenseKey, expiresAt });
 });
 
 // POST /api/admin/licenses/bulk-generate  — generate multiple keys at once
 router.post("/licenses/bulk-generate", requireAdmin, (req, res) => {
-  const { count = 1, note } = req.body || {};
+  const { count = 1, note, expiryDays } = req.body || {};
   const n = Math.max(1, Math.min(100, parseInt(count) || 1));
+  const expiresAt = computeExpiresAt(expiryDays);
   const licenses = loadLicenses();
   const now = new Date().toISOString();
   const newKeys = [];
@@ -78,12 +88,13 @@ router.post("/licenses/bulk-generate", requireAdmin, (req, res) => {
       txHash: "MANUAL",
       note: (note || "Bulk generated").slice(0, 100),
       issuedAt: now,
+      ...(expiresAt ? { expiresAt } : {}),
     });
     newKeys.push(licenseKey);
   }
   saveLicenses(licenses);
-  console.log(`🔑 Bulk issued ${n} license(s)${note ? ` (${note})` : ""}`);
-  res.json({ keys: newKeys, count: newKeys.length });
+  console.log(`🔑 Bulk issued ${n} license(s)${note ? ` (${note})` : ""}${expiresAt ? ` expires ${expiresAt}` : ""}`);
+  res.json({ keys: newKeys, count: newKeys.length, expiresAt });
 });
 
 // DELETE /api/admin/licenses/:key  — revoke a license key
