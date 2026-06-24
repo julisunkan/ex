@@ -97,6 +97,11 @@ function LicensesTab({ pw }: { pw: string }) {
   const [newKey, setNewKey] = useState<string | null>(null);
   const [newKeyCopied, setNewKeyCopied] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+  // Bulk generate state
+  const [bulkCount, setBulkCount] = useState(5);
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [bulkKeys, setBulkKeys] = useState<string[]>([]);
 
   async function load() {
     setLoading(true);
@@ -129,6 +134,37 @@ function LicensesTab({ pw }: { pw: string }) {
     navigator.clipboard.writeText(newKey);
     setNewKeyCopied(true);
     setTimeout(() => setNewKeyCopied(false), 2000);
+  }
+
+  async function bulkGenerate() {
+    setBulkGenerating(true);
+    setBulkKeys([]);
+    const res = await fetch(`${API_BASE}/api/admin/licenses/bulk-generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      body: JSON.stringify({ count: bulkCount, note: bulkNote || "Bulk generated" }),
+    });
+    setBulkGenerating(false);
+    if (res.ok) {
+      const { keys } = await res.json();
+      setBulkKeys(keys);
+      load();
+    }
+  }
+
+  function downloadCsv() {
+    if (!bulkKeys.length) return;
+    const note = bulkNote || "Bulk generated";
+    const header = "License Key,Note,Generated At";
+    const rows = bulkKeys.map(k => `${k},"${note}",${new Date().toISOString()}`);
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bsa-licenses-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function revokeKey(key: string) {
@@ -174,6 +210,60 @@ function LicensesTab({ pw }: { pw: string }) {
                 className="shrink-0 flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors">
                 {newKeyCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
               </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Bulk generate card */}
+      <Card className="border-purple-100 bg-purple-50/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Download className="w-4 h-4 text-purple-600" /> Bulk Generate Keys
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">Generate up to 100 keys at once and download as a CSV file.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium shrink-0">Count</label>
+              <Input
+                type="number" min={1} max={100}
+                value={bulkCount}
+                onChange={e => setBulkCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                className="w-20"
+              />
+            </div>
+            <Input
+              value={bulkNote}
+              onChange={e => setBulkNote(e.target.value)}
+              placeholder="Note (optional, e.g. 'Beta batch')"
+              className="flex-1 min-w-[160px]"
+            />
+            <Button onClick={bulkGenerate} disabled={bulkGenerating} variant="outline" className="gap-2 border-purple-300 text-purple-700 hover:bg-purple-50 shrink-0">
+              {bulkGenerating
+                ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating…</>
+                : <><KeyRound className="w-4 h-4" /> Generate {bulkCount}</>}
+            </Button>
+          </div>
+
+          {bulkKeys.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-green-700">✓ {bulkKeys.length} keys generated</p>
+                <Button onClick={downloadCsv} size="sm" className="gap-2 bg-purple-600 hover:bg-purple-700 text-white">
+                  <Download className="w-3.5 h-3.5" /> Download CSV
+                </Button>
+              </div>
+              <div className="max-h-36 overflow-y-auto rounded-lg border border-purple-200 bg-white">
+                {bulkKeys.map((k, i) => (
+                  <div key={k} className="flex items-center justify-between px-3 py-1.5 border-b border-purple-50 last:border-0 hover:bg-purple-50/50">
+                    <span className="text-xs text-muted-foreground w-5 shrink-0">{i + 1}</span>
+                    <code className="flex-1 text-xs font-mono font-medium text-foreground tracking-wider select-all">{k}</code>
+                    <CopyBtn text={k} />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>

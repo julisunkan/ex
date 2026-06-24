@@ -64,6 +64,28 @@ router.post("/licenses/generate", requireAdmin, (req, res) => {
   res.json({ licenseKey });
 });
 
+// POST /api/admin/licenses/bulk-generate  — generate multiple keys at once
+router.post("/licenses/bulk-generate", requireAdmin, (req, res) => {
+  const { count = 1, note } = req.body || {};
+  const n = Math.max(1, Math.min(100, parseInt(count) || 1));
+  const licenses = loadLicenses();
+  const now = new Date().toISOString();
+  const newKeys = [];
+  for (let i = 0; i < n; i++) {
+    const licenseKey = generateLicenseKey();
+    licenses.push({
+      licenseKey,
+      txHash: "MANUAL",
+      note: (note || "Bulk generated").slice(0, 100),
+      issuedAt: now,
+    });
+    newKeys.push(licenseKey);
+  }
+  saveLicenses(licenses);
+  console.log(`🔑 Bulk issued ${n} license(s)${note ? ` (${note})` : ""}`);
+  res.json({ keys: newKeys, count: newKeys.length });
+});
+
 // DELETE /api/admin/licenses/:key  — revoke a license key
 router.delete("/licenses/:key", requireAdmin, (req, res) => {
   const { key } = req.params;
