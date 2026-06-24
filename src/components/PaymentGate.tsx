@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchAdminWallet, verifyPayment, setLicense, activateLicenseKey } from "../lib/payment";
+import { fetchPaymentConfig, verifyPayment, setLicense, activateLicenseKey } from "../lib/payment";
 import iconHighlight from "@assets/icons/icon-highlight.png";
 import iconExport from "@assets/icons/icon-export.png";
 
@@ -19,6 +19,7 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
   const [wallet, setWallet] = useState<string>("");
   const [price, setPrice] = useState<number>(5);
   const [network, setNetwork] = useState<string>("TRC-20 (Tron)");
+  const [planId, setPlanId] = useState<string>("monthly");
   const [txHash, setTxHash] = useState("");
   const [payStep, setPayStep] = useState<PayStep>("info");
   const [payError, setPayError] = useState("");
@@ -33,11 +34,16 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
   const [keySuccess, setKeySuccess] = useState(false);
 
   useEffect(() => {
-    fetchAdminWallet().then((cfg) => {
+    fetchPaymentConfig().then((cfg) => {
       if (cfg) {
         setWallet(cfg.address);
-        setPrice(cfg.price);
-        setNetwork(cfg.network);
+        const defaultPlan = cfg.plans?.[0];
+        if (defaultPlan) {
+          setPrice(defaultPlan.price);
+          setPlanId(defaultPlan.id);
+        }
+        const networkLabel = cfg.network === "tron" ? "TRC-20 (Tron)" : cfg.network === "bsc" ? "BEP-20 (BSC)" : cfg.network === "eth" ? "ERC-20 (ETH)" : cfg.network;
+        setNetwork(networkLabel);
       }
     });
   }, []);
@@ -59,7 +65,7 @@ export default function PaymentGate({ onUnlocked, onDismiss, initialMode = "pay"
     if (!hash) { setPayError("Please paste your transaction hash."); return; }
     setPayStep("verifying");
     setPayError("");
-    const result = await verifyPayment(hash);
+    const result = await verifyPayment(hash, planId);
     if (result.success && result.licenseKey) {
       setGeneratedKey(result.licenseKey);
       setLicense(result.licenseKey);
